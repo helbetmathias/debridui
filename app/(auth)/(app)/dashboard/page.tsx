@@ -170,10 +170,12 @@ const AddonCatalogRow = memo(function AddonCatalogRow({
 // Single shared IntersectionObserver for all catalog rows
 const AddonCatalogs = memo(function AddonCatalogs() {
     const { catalogs, isLoading } = useAddonCatalogDefs();
-    const cinemetaCatalogs = useMemo(
-        () => catalogs.filter((catalog) => catalog.addonName.trim().toLowerCase() === "cinemeta"),
-        [catalogs]
-    );
+    const dashboardCatalogs = useMemo(() => {
+        return catalogs.filter((catalog) => {
+            const addonName = catalog.addonName.trim().toLowerCase();
+            return addonName === "cinemeta" || addonName === "streaming catalogs";
+        });
+    }, [catalogs]);
     const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
     const observerRef = useRef<IntersectionObserver>(undefined);
     const pendingRef = useRef<Element[]>([]);
@@ -215,12 +217,12 @@ const AddonCatalogs = memo(function AddonCatalogs() {
         }
     }, []);
 
-    if (isLoading || cinemetaCatalogs.length === 0) return null;
+    if (isLoading || dashboardCatalogs.length === 0) return null;
 
     return (
-        <ContentSection label="Cinemeta" icon={Puzzle}>
+        <ContentSection label="From Your Addons" icon={Puzzle}>
             <div className="space-y-1 md:space-y-3">
-                {cinemetaCatalogs.map((catalog) => {
+                {dashboardCatalogs.map((catalog) => {
                     const key = `${catalog.addonId}-${catalog.type}-${catalog.id}`;
                     return (
                         <div key={key} ref={observeRef} data-catalog-key={key}>
