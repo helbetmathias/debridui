@@ -13,16 +13,16 @@ import type { clearSearchHistorySchema, recordSearchPickSchema, removeSearchPick
 const SEARCH_HISTORY_KEY = ["search-history"];
 
 /** Fetch the user's search history (newest first). */
-export function useSearchHistory(provider?: string) {
+export function useSearchHistory() {
     return useQuery({
-        queryKey: provider ? [...SEARCH_HISTORY_KEY, provider] : SEARCH_HISTORY_KEY,
-        queryFn: () => getSearchHistory(provider),
+        queryKey: SEARCH_HISTORY_KEY,
+        queryFn: getSearchHistory,
         staleTime: 1000 * 60, // 1 minute
         refetchOnWindowFocus: true,
     });
 }
 
-/** Record a search pick — fire-and-forget from the click handler. */
+/** Record a TMDB search pick before navigation. */
 export function useRecordSearchPick() {
     const queryClient = useQueryClient();
 

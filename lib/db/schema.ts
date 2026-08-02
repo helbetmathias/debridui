@@ -49,45 +49,9 @@ export const userSettings = pgTable("user_settings", {
     settings: jsonb("settings").notNull(),
 });
 
-// Playback history table - stores user playback history (max 20 per user)
-export const playbackHistory = pgTable(
-    "playback_history",
-    {
-        id: uuid("id").primaryKey().defaultRandom(),
-        userId: uuid("user_id")
-            .notNull()
-            .references(() => user.id, { onDelete: "cascade" }),
-
-        // Media identification
-        imdbId: text("imdb_id").notNull(),
-        type: text("type", { enum: ["movie", "show"] }).notNull(),
-
-        // Display fields (minimal - avoid storing full media object)
-        title: text("title").notNull(),
-        year: integer("year"),
-        posterUrl: text("poster_url"),
-
-        // TV show fields (nullable for movies)
-        season: integer("season"),
-        episode: integer("episode"),
-
-        // Updated timestamp for sorting (UUIDv7 id has creation time)
-        updatedAt: timestamp("updated_at").notNull().defaultNow(),
-    },
-    (table) => [
-        // Fast user lookups sorted by most recent
-        index("playback_history_user_updated_idx").on(table.userId, table.updatedAt.desc()),
-        // Enforce one entry per user+imdb (shows update same entry when playing new episodes)
-        uniqueIndex("playback_history_user_imdb_idx").on(table.userId, table.imdbId),
-        // Lookup by IMDb for updates
-        index("playback_history_imdb_idx").on(table.imdbId),
-    ]
-);
-
-// Media-provider metadata for a search-history entry. The legacy `trakt` kind
-// remains readable so existing history survives the TMDB migration.
+// TMDB metadata stored for a search-history entry.
 export type MediaSearchMetadata = {
-    kind: "trakt" | "tmdb";
+    kind: "tmdb";
     type: "movie" | "show";
     slug?: string;
     imdbId?: string;
@@ -110,14 +74,14 @@ export const searchHistory = pgTable(
             .notNull()
             .references(() => user.id, { onDelete: "cascade" }),
 
-        // Polymorphic identity — uniqueness is (user, provider, providerId)
-        provider: text("provider").notNull(), // "tmdb" | legacy "trakt" | future providers
+        // TMDB identity — uniqueness is (user, provider, providerId)
+        provider: text("provider").notNull(),
         providerId: text("provider_id").notNull(), // stringified id within provider
 
         // Generic display field shared by every provider
         title: text("title").notNull(),
 
-        // Provider-specific structured data (discriminated by metadata.kind)
+        // Structured display data for the TMDB result
         metadata: jsonb("metadata").$type<SearchHistoryMetadata>().notNull(),
 
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -135,7 +99,6 @@ export const userRelations = relations(user, ({ many, one }) => ({
     userAccounts: many(userAccounts),
     addons: many(addons),
     userSettings: one(userSettings),
-    playbackHistory: many(playbackHistory),
     searchHistory: many(searchHistory),
 }));
 
@@ -160,13 +123,6 @@ export const userSettingsRelations = relations(userSettings, ({ one }) => ({
     }),
 }));
 
-export const playbackHistoryRelations = relations(playbackHistory, ({ one }) => ({
-    user: one(user, {
-        fields: [playbackHistory.userId],
-        references: [user.id],
-    }),
-}));
-
 export const searchHistoryRelations = relations(searchHistory, ({ one }) => ({
     user: one(user, {
         fields: [searchHistory.userId],
@@ -181,7 +137,5 @@ export type Addon = typeof addons.$inferSelect;
 export type NewAddon = typeof addons.$inferInsert;
 export type UserSetting = typeof userSettings.$inferSelect;
 export type NewUserSetting = typeof userSettings.$inferInsert;
-export type PlaybackHistory = typeof playbackHistory.$inferSelect;
-export type NewPlaybackHistory = typeof playbackHistory.$inferInsert;
 export type SearchHistory = typeof searchHistory.$inferSelect;
 export type NewSearchHistory = typeof searchHistory.$inferInsert;

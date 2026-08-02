@@ -40,37 +40,7 @@ export const addonOrderUpdateSchema = z.array(
     })
 );
 
-// Playback history schemas
-export const tvParamsSchema = z
-    .object({
-        season: z.number().int().positive("Season must be positive"),
-        episode: z.number().int().positive("Episode must be positive"),
-    })
-    .optional();
-
-export const mediaSchema = z.object({
-    title: z.string().min(1, "Title is required"),
-    year: z.number().int().positive().optional(),
-    images: z
-        .object({
-            poster: z.array(z.string()).optional(),
-        })
-        .optional(),
-});
-
-export const recordPlaybackSchema = z.object({
-    imdbId: z.string().regex(/^tt\d+$/, "Invalid IMDb ID format"),
-    type: z.enum(["movie", "show"], { message: "Type must be 'movie' or 'show'" }),
-    media: mediaSchema,
-    tvParams: tvParamsSchema,
-});
-
-export const removePlaybackSchema = z.object({
-    imdbId: z.string().regex(/^tt\d+$/, "Invalid IMDb ID format"),
-});
-
-// Search history schemas — polymorphic by provider via a discriminated union.
-// Adding a new provider (e.g. "file") is a new entry in the union below.
+// TMDB search history schemas
 const mediaSearchMetadataSchema = z.object({
     type: z.enum(["movie", "show"]),
     slug: z.string().optional(),
@@ -81,30 +51,19 @@ const mediaSearchMetadataSchema = z.object({
     subtitle: z.string().optional(),
 });
 
-const traktSearchPickSchema = z.object({
-    provider: z.literal("trakt"),
-    providerId: z.string().min(1),
-    title: z.string().min(1),
-    metadata: mediaSearchMetadataSchema.extend({ kind: z.literal("trakt") }),
-});
-
-const tmdbSearchPickSchema = z.object({
+export const recordSearchPickSchema = z.object({
     provider: z.literal("tmdb"),
     providerId: z.string().min(1),
     title: z.string().min(1),
     metadata: mediaSearchMetadataSchema.extend({ kind: z.literal("tmdb") }),
 });
 
-export const recordSearchPickSchema = z.discriminatedUnion("provider", [traktSearchPickSchema, tmdbSearchPickSchema]);
-
 export const removeSearchPickSchema = z.object({
-    provider: z.string().min(1),
+    provider: z.literal("tmdb"),
     providerId: z.string().min(1),
 });
 
-export const clearSearchHistorySchema = z.object({
-    provider: z.string().min(1).optional(),
-});
+export const clearSearchHistorySchema = z.object({});
 
 // User settings schema (snake_case for DB storage)
 export const serverSettingsSchema = z.object({

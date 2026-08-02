@@ -3,7 +3,6 @@
 import { Film, Puzzle, Tv } from "lucide-react";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ContinueWatching } from "@/components/mdb/continue-watching";
 import { HeroCarouselSkeleton } from "@/components/mdb/hero-carousel-skeleton";
 import { MdbFooter } from "@/components/mdb/mdb-footer";
 import { MediaSection } from "@/components/mdb/media-section";
@@ -150,9 +149,6 @@ const DashboardPage = memo(function DashboardPage() {
         <div className="pb-12">
             {/* Hero Carousel */}
             <HeroCarousel autoFocus />
-
-            {/* Continue Watching */}
-            <ContinueWatching />
 
             {/* Content Sections with lazy loading */}
             <div className="lg:px-6 space-y-16">

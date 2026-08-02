@@ -52,23 +52,18 @@ export async function recordSearchPick(input: z.infer<typeof recordSearchPickSch
 }
 
 /**
- * Get the user's search history, newest first.
- * `provider` filters to a single provider (e.g. only "trakt" picks).
+ * Get the user's TMDB search history, newest first.
  * Cached per-request to deduplicate DB queries in RSC render trees.
  */
-export const getSearchHistory = cache(async (provider?: string) => {
+export const getSearchHistory = cache(async () => {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) return [];
 
     try {
-        const where = provider
-            ? and(eq(searchHistory.userId, session.user.id), eq(searchHistory.provider, provider))
-            : eq(searchHistory.userId, session.user.id);
-
         return await db
             .select()
             .from(searchHistory)
-            .where(where)
+            .where(and(eq(searchHistory.userId, session.user.id), eq(searchHistory.provider, "tmdb")))
             .orderBy(desc(searchHistory.updatedAt))
             .limit(MAX_ENTRIES_RETURNED);
     } catch (error) {
@@ -101,19 +96,17 @@ export async function removeFromSearchHistory(input: z.infer<typeof removeSearch
     }
 }
 
-/** Clear the current user's search history, optionally scoped to one provider. */
+/** Clear the current user's TMDB search history. */
 export async function clearSearchHistory(input: z.infer<typeof clearSearchHistorySchema> = {}) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) redirect("/login");
 
-    const { provider } = clearSearchHistorySchema.parse(input);
+    clearSearchHistorySchema.parse(input);
 
     try {
-        const where = provider
-            ? and(eq(searchHistory.userId, session.user.id), eq(searchHistory.provider, provider))
-            : eq(searchHistory.userId, session.user.id);
-
-        await db.delete(searchHistory).where(where);
+        await db
+            .delete(searchHistory)
+            .where(and(eq(searchHistory.userId, session.user.id), eq(searchHistory.provider, "tmdb")));
         return { success: true };
     } catch (error) {
         console.error("Failed to clear search history:", error);

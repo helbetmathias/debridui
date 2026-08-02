@@ -34,7 +34,7 @@ export function SearchContent({
     const inputRef = useRef<HTMLInputElement>(null);
     const [query, setQuery] = useState(defaultQuery);
     const [debouncedQuery, setDebouncedQuery] = useState(defaultQuery);
-    const { mutate: recordPick } = useRecordSearchPick();
+    const { mutateAsync: recordPick } = useRecordSearchPick();
 
     // Debounce the query and (page variant only) mirror it to the URL's `?q=` param.
     // Uses history.replaceState directly so the global progress bar (hooked into
@@ -76,34 +76,37 @@ export function SearchContent({
     );
 
     const handleMediaSelect = useCallback(
-        (result: TraktSearchResult) => {
+        async (result: TraktSearchResult) => {
             const media = result.movie || result.show;
             const slug = media?.ids?.slug || media?.ids?.imdb;
             if (!slug || !media) return;
 
             const type = result.movie ? "movie" : "show";
-            router.push(`/${type}s/${slug}`);
-
-            // Fire-and-forget: record the pick to search history
             if (media.ids?.tmdb) {
-                recordPick({
-                    provider: "tmdb",
-                    providerId: String(media.ids.tmdb),
-                    title: media.title,
-                    metadata: {
-                        kind: "tmdb",
-                        type,
-                        slug: media.ids.slug,
-                        imdbId: media.ids.imdb,
-                        year: media.year,
-                        rating: media.rating,
-                        subtitle: media.overview ?? undefined,
-                        posterUrl:
-                            getPosterUrl(media.images) ||
-                            `https://placehold.co/300x450/1a1a1a/3e3e3e?text=${encodeURIComponent(media.title)}`,
-                    },
-                });
+                try {
+                    await recordPick({
+                        provider: "tmdb",
+                        providerId: String(media.ids.tmdb),
+                        title: media.title,
+                        metadata: {
+                            kind: "tmdb",
+                            type,
+                            slug: media.ids.slug,
+                            imdbId: media.ids.imdb,
+                            year: media.year,
+                            rating: media.rating,
+                            subtitle: media.overview ?? undefined,
+                            posterUrl:
+                                getPosterUrl(media.images) ||
+                                `https://placehold.co/300x450/1a1a1a/3e3e3e?text=${encodeURIComponent(media.title)}`,
+                        },
+                    });
+                } catch {
+                    // Navigation should still work if persisting history fails.
+                }
             }
+
+            router.push(`/${type}s/${slug}`);
 
             if (variant === "modal" && onClose) {
                 onClose();

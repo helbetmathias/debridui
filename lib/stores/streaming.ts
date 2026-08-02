@@ -1,7 +1,6 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import { getStreamCapableAddons } from "@/hooks/use-addons";
-import { recordPlayback } from "@/lib/actions/playback-history";
 import { AddonClient } from "@/lib/addons/client";
 import { parseStreams } from "@/lib/addons/parser";
 import type { Addon, AddonSource, TvSearchParams } from "@/lib/addons/types";
@@ -138,14 +137,6 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
     play: async (request, addons) => {
         const { imdbId, type, tvParams, media } = request;
         const title = formatTitle(request);
-
-        recordPlayback({ imdbId, type, media, tvParams })
-            .then(() =>
-                queryClient.invalidateQueries({
-                    queryKey: ["playback-history"],
-                })
-            )
-            .catch((error) => console.error("Failed to record playback:", error));
 
         // Filter to enabled addons, then to stream-capable via manifest check (cache-first)
         const enabled = addons.filter((a) => a.enabled).sort((a, b) => a.order - b.order);

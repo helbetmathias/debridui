@@ -23,45 +23,12 @@ interface SearchHistorySectionProps {
 
 /** Derive the route URL for a history entry. URL structure lives here so it can change without a backfill. */
 function deriveHref(entry: SearchHistory): string {
-    switch (entry.metadata.kind) {
-        case "trakt":
-        case "tmdb": {
-            const m = entry.metadata;
-            return `/${m.type}s/${m.slug ?? m.imdbId ?? entry.providerId}`;
-        }
-        default:
-            return "/";
-    }
+    const metadata = entry.metadata;
+    return `/${metadata.type}s/${metadata.slug ?? metadata.imdbId ?? entry.providerId}`;
 }
 
 function deriveKicker(entry: SearchHistory): string {
-    switch (entry.metadata.kind) {
-        case "trakt":
-        case "tmdb":
-            return entry.metadata.type === "movie" ? "Film" : "Series";
-        default:
-            return entry.provider;
-    }
-}
-
-function derivePoster(entry: SearchHistory): string | undefined {
-    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.posterUrl;
-    return undefined;
-}
-
-function deriveSubtitle(entry: SearchHistory): string | undefined {
-    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.subtitle;
-    return undefined;
-}
-
-function deriveYear(entry: SearchHistory): number | undefined {
-    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.year;
-    return undefined;
-}
-
-function deriveRating(entry: SearchHistory): number | undefined {
-    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.rating;
-    return undefined;
+    return entry.metadata.type === "movie" ? "Film" : "Series";
 }
 
 const HistoryRow = memo(function HistoryRow({
@@ -75,13 +42,12 @@ const HistoryRow = memo(function HistoryRow({
     onSelect: (entry: SearchHistory) => void;
     onRemove: () => void;
 }) {
-    const poster = derivePoster(entry);
+    const poster = entry.metadata.posterUrl;
     const kicker = deriveKicker(entry);
-    const subtitle = deriveSubtitle(entry);
-    const year = deriveYear(entry);
-    const rating = deriveRating(entry);
-    const isMovie =
-        (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") && entry.metadata.type === "movie";
+    const subtitle = entry.metadata.subtitle;
+    const year = entry.metadata.year;
+    const rating = entry.metadata.rating;
+    const isMovie = entry.metadata.type === "movie";
     const Icon = isMovie ? Film : Tv;
 
     return (
@@ -160,7 +126,7 @@ export const SearchHistorySection = memo(function SearchHistorySection({
     const { data: history = [] } = useSearchHistory();
     const { mutate: removeEntry } = useRemoveFromSearchHistory();
     const { mutate: clearAll } = useClearSearchHistory();
-    const { mutate: recordPick } = useRecordSearchPick();
+    const { mutateAsync: recordPick } = useRecordSearchPick();
     const [confirmOpen, setConfirmOpen] = useState(false);
 
     if (history.length === 0) return null;
@@ -168,23 +134,18 @@ export const SearchHistorySection = memo(function SearchHistorySection({
     const cap = limit ?? (isModal ? 8 : 20);
     const entries = history.slice(0, cap);
 
-    const handleSelect = (entry: SearchHistory) => {
-        router.push(deriveHref(entry));
-        if (entry.metadata.kind === "trakt") {
-            recordPick({
-                provider: "trakt",
-                providerId: entry.providerId,
-                title: entry.title,
-                metadata: { ...entry.metadata, kind: "trakt" },
-            });
-        } else if (entry.metadata.kind === "tmdb") {
-            recordPick({
+    const handleSelect = async (entry: SearchHistory) => {
+        try {
+            await recordPick({
                 provider: "tmdb",
                 providerId: entry.providerId,
                 title: entry.title,
                 metadata: { ...entry.metadata, kind: "tmdb" },
             });
+        } catch {
+            // Navigation should still work if refreshing the history timestamp fails.
         }
+        router.push(deriveHref(entry));
         onItemClick?.();
     };
 
@@ -218,7 +179,7 @@ export const SearchHistorySection = memo(function SearchHistorySection({
                         entry={entry}
                         variant={variant}
                         onSelect={handleSelect}
-                        onRemove={() => removeEntry({ provider: entry.provider, providerId: entry.providerId })}
+                        onRemove={() => removeEntry({ provider: "tmdb", providerId: entry.providerId })}
                     />
                 ))}
             </div>
