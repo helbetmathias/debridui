@@ -8,6 +8,7 @@ import {
     type AddonManifest,
     type AddonSource,
     hasCatalogs,
+    hasResource,
     hasStreams,
     type TvSearchParams,
 } from "@/lib/addons/types";
@@ -317,9 +318,24 @@ export interface AddonCatalogDef {
     type: string;
     id: string;
     name: string;
+    manifestId: string;
     addonId: string;
     addonName: string;
     addonUrl: string;
+    addonEnabled: boolean;
+}
+
+export interface AddonManifestDef {
+    addonId: string;
+    addonName: string;
+    addonEnabled: boolean;
+    capabilities: {
+        catalogs: boolean;
+        streams: boolean;
+        metadata: boolean;
+        subtitles: boolean;
+    };
+    catalogs: AddonCatalogDef[];
 }
 
 /**
@@ -328,38 +344,58 @@ export interface AddonCatalogDef {
  * - async-parallel: All manifests fetched independently via useQueries
  * - client-swr-dedup: Manifest queries share cache with addon cards (same key)
  */
-export function useAddonCatalogDefs() {
+export function useAddonCatalogDefs({ includeDisabled = false }: { includeDisabled?: boolean } = {}) {
     const { data: addons = [], isPending: isAddonsLoading } = useUserAddons();
 
-    const enabledAddons = useMemo(() => addons.filter((a) => a.enabled).sort((a, b) => a.order - b.order), [addons]);
+    const catalogAddons = useMemo(
+        () => addons.filter((addon) => includeDisabled || addon.enabled).sort((a, b) => a.order - b.order),
+        [addons, includeDisabled]
+    );
 
     // Fetch manifests in parallel (shares cache with useAddon hook)
     const manifests = useQueries({
-        queries: enabledAddons.map((addon) => manifestQueryOptions(addon)),
+        queries: catalogAddons.map((addon) => manifestQueryOptions(addon)),
     });
 
-    // rerender-dependencies: derive stable primitive key from query results
-    const _manifestDataKey = manifests.map((q) => q.dataUpdatedAt).join(",");
+    const addonManifests = catalogAddons.flatMap((addon, index): AddonManifestDef[] => {
+        const manifest = manifests[index]?.data;
+        if (!manifest) return [];
 
-    // Extract browsable catalogs from addons with catalog capability
-    const catalogs = useMemo<AddonCatalogDef[]>(() => {
-        return manifests.flatMap((q, i) => {
-            if (!q.data || !hasCatalogs(q.data)) return [];
-            return (q.data.catalogs ?? [])
-                .filter((c) => !c.extra?.some((e) => e.name === "search" && e.isRequired))
-                .map((c) => ({
-                    ...c,
-                    name: c.name || c.id,
-                    addonId: enabledAddons[i].id,
-                    addonName: enabledAddons[i].name,
-                    addonUrl: enabledAddons[i].url,
-                }));
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabledAddons, manifests.flatMap]);
+        const catalogs = hasCatalogs(manifest)
+            ? (manifest.catalogs ?? [])
+                  .filter((c) => !c.extra?.some((e) => e.name === "search" && e.isRequired))
+                  .map((c) => ({
+                      ...c,
+                      name: c.name || c.id,
+                      manifestId: manifest.id,
+                      addonId: addon.id,
+                      addonName: addon.name,
+                      addonUrl: addon.url,
+                      addonEnabled: addon.enabled,
+                  }))
+            : [];
+
+        return [
+            {
+                addonId: addon.id,
+                addonName: addon.name,
+                addonEnabled: addon.enabled,
+                capabilities: {
+                    catalogs: hasCatalogs(manifest),
+                    streams: hasStreams(manifest),
+                    metadata: hasResource(manifest, "meta"),
+                    subtitles: hasResource(manifest, "subtitles"),
+                },
+                catalogs,
+            },
+        ];
+    });
+
+    const catalogs = addonManifests.flatMap((addon) => addon.catalogs);
 
     return {
         catalogs,
+        addonManifests,
         isLoading: isAddonsLoading || manifests.some((q) => q.isPending),
     };
 }
@@ -406,9 +442,11 @@ export function useAddonCatalogDef(addonId: string, type: string, catalogId: str
         return {
             ...cat,
             name: cat.name || cat.id,
+            manifestId: manifest.id,
             addonId: addon.id,
             addonName: addon.name,
             addonUrl: addon.url,
+            addonEnabled: addon.enabled,
         };
     }, [manifest, type, catalogId, addon]);
 

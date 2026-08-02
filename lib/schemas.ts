@@ -109,4 +109,5 @@ export const clearSearchHistorySchema = z.object({
 // User settings schema (snake_case for DB storage)
 export const serverSettingsSchema = z.object({
     tmdb_api_key: z.string().max(256).optional(),
+    catalog_visibility: z.record(z.string(), z.boolean()).optional(),
 });

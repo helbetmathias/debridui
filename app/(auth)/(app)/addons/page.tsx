@@ -4,6 +4,7 @@ import { ClipboardPaste, Info, Loader2, Plus, Puzzle, RefreshCw, X } from "lucid
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AddonCard, AddonCardSkeleton } from "@/components/addon-card";
+import { CatalogSettings } from "@/components/catalog-settings";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CachedBadge } from "@/components/display";
 import { PageHeader } from "@/components/page-header";
@@ -265,6 +266,8 @@ export default function AddonsPage() {
                     </div>
                 )}
             </section>
+
+            <CatalogSettings />
 
             {/* Info Section */}
             <section className="space-y-4">

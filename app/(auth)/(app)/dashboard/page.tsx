@@ -8,6 +8,8 @@ import { HeroCarouselSkeleton } from "@/components/mdb/hero-carousel-skeleton";
 import { MdbFooter } from "@/components/mdb/mdb-footer";
 import { MediaSection } from "@/components/mdb/media-section";
 import { type AddonCatalogDef, catalogSlug, useAddonCatalog, useAddonCatalogDefs } from "@/hooks/use-addons";
+import { useUserSettings } from "@/hooks/use-user-settings";
+import { isCatalogVisible } from "@/lib/addons/catalog-preferences";
 
 const HeroCarousel = dynamic(
     () => import("@/components/mdb/hero-carousel").then((m) => ({ default: m.HeroCarousel })),
@@ -79,12 +81,11 @@ const AddonCatalogRow = memo(function AddonCatalogRow({
 // Single shared IntersectionObserver for all catalog rows
 const AddonCatalogs = memo(function AddonCatalogs() {
     const { catalogs, isLoading } = useAddonCatalogDefs();
-    const dashboardCatalogs = useMemo(() => {
-        return catalogs.filter((catalog) => {
-            const addonName = catalog.addonName.trim().toLowerCase();
-            return addonName === "cinemeta" || addonName === "streaming catalogs";
-        });
-    }, [catalogs]);
+    const { data: settings, isLoading: settingsLoading } = useUserSettings();
+    const dashboardCatalogs = useMemo(
+        () => catalogs.filter((catalog) => isCatalogVisible(catalog, settings?.catalog_visibility)),
+        [catalogs, settings?.catalog_visibility]
+    );
     const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
     const observerRef = useRef<IntersectionObserver>(undefined);
     const pendingRef = useRef<Element[]>([]);
@@ -126,7 +127,7 @@ const AddonCatalogs = memo(function AddonCatalogs() {
         }
     }, []);
 
-    if (isLoading || dashboardCatalogs.length === 0) return null;
+    if (isLoading || settingsLoading || dashboardCatalogs.length === 0) return null;
 
     return (
         <ContentSection label="From Your Addons" icon={Puzzle}>

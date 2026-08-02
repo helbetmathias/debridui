@@ -28,8 +28,20 @@ export function useSaveUserSettings() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (settings: Partial<ServerSettings>) => saveUserSettings(settings),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: USER_SETTINGS_KEY });
+        onMutate: async (updates) => {
+            await queryClient.cancelQueries({ queryKey: USER_SETTINGS_KEY });
+            const previousSettings = queryClient.getQueryData<ServerSettings | null>(USER_SETTINGS_KEY);
+
+            queryClient.setQueryData<ServerSettings | null>(USER_SETTINGS_KEY, (current) => ({
+                ...(current ?? {}),
+                ...updates,
+            }));
+
+            return { previousSettings };
         },
+        onError: (_error, _updates, context) => {
+            queryClient.setQueryData(USER_SETTINGS_KEY, context?.previousSettings ?? null);
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: USER_SETTINGS_KEY }),
     });
 }

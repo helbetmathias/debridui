@@ -9,7 +9,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type AddonCatalogDef, parseCatalogSlug, useAddonCatalog, useAddonCatalogDef } from "@/hooks/use-addons";
 
 // rerender-memo-with-default-value: hoisted constant avoids new object per render
-const EMPTY_CATALOG: AddonCatalogDef = { addonId: "", type: "", id: "", name: "", addonName: "", addonUrl: "" };
+const EMPTY_CATALOG: AddonCatalogDef = {
+    addonId: "",
+    type: "",
+    id: "",
+    name: "",
+    manifestId: "",
+    addonName: "",
+    addonUrl: "",
+    addonEnabled: false,
+};
 
 const DiscoverAddonPage = memo(function DiscoverAddonPage() {
     const router = useRouter();
