@@ -30,7 +30,7 @@ A modern debrid client for managing your files, discovering trending movies and 
 
 ### Media Discovery
 
-- **Trakt.tv catalogue** - Browse trending movies and TV shows
+- **TMDB catalogue** - Browse trending movies and TV shows
 - **Smart search** - Find content across multiple sources
 - **Media details** - Cast info, ratings, trailers, and recommendations
 - **Season/episode browser** - Navigate TV shows with ease
@@ -60,6 +60,9 @@ cp .env.example .env.local
 ```
 
 See [`.env.example`](.env.example) for all available environment variables and their descriptions.
+
+Media discovery uses TMDB. Add an API key or API Read Access Token under **Settings → API Keys**, or configure
+`TMDB_API_READ_TOKEN`/`TMDB_API_KEY` once in the server environment for every user.
 
 ### Installation
 

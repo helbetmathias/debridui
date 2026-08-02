@@ -238,19 +238,19 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-2">
                         <Key className="size-4 text-muted-foreground" />
                         <Label htmlFor="tmdb-api-key" className="text-sm">
-                            TMDB API Key
+                            TMDB Credential
                         </Label>
                     </div>
                     <div className="max-w-md">
                         <PasswordInput
                             id="tmdb-api-key"
-                            placeholder="Enter your TMDB API key"
+                            placeholder="Enter your TMDB API key or read access token"
                             value={tmdbApiKey}
                             onChange={(e) => handleTmdbApiKeyChange(e.target.value)}
                         />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Needed for episode grouping and enhanced TV show metadata—particularly useful for anime.{" "}
+                        Used for all movie and TV discovery. API keys and API Read Access Tokens are both supported.{" "}
                         <a
                             href="https://www.themoviedb.org/settings/api"
                             target="_blank"

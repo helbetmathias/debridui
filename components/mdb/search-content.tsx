@@ -85,13 +85,13 @@ export function SearchContent({
             router.push(`/${type}s/${slug}`);
 
             // Fire-and-forget: record the pick to search history
-            if (media.ids?.trakt) {
+            if (media.ids?.tmdb) {
                 recordPick({
-                    provider: "trakt",
-                    providerId: String(media.ids.trakt),
+                    provider: "tmdb",
+                    providerId: String(media.ids.tmdb),
                     title: media.title,
                     metadata: {
-                        kind: "trakt",
+                        kind: "tmdb",
                         type,
                         slug: media.ids.slug,
                         imdbId: media.ids.imdb,
@@ -142,7 +142,7 @@ export function SearchContent({
                 <CommandList className={cn("h-[70vh] sm:h-[75vh] overflow-y-auto", className)}>
                     <SearchResults
                         // Remount whenever the result-set composition changes so cmdk re-registers items in DOM order.
-                        // Without this, items registered earlier (e.g. trakt) keep "first" status even after files
+                        // Without this, items registered earlier keep "first" status even after files
                         // mount above them — and cmdk navigates by registration order, not DOM order.
                         key={`${debouncedQuery}:${!!fileResults?.length}:${!!traktResults?.length}:${!!sourceResults?.length}`}
                         query={debouncedQuery}

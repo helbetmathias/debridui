@@ -306,18 +306,18 @@ const DashboardPage = memo(function DashboardPage() {
                     />
                 </ContentSection>
 
-                {/* Box Office */}
-                <ContentSection label="Box Office" icon={Ticket} delay={200}>
+                {/* Now Playing */}
+                <ContentSection label="Now Playing" icon={Ticket} delay={200}>
                     <MediaSection
-                        title="Top Grossing"
+                        title="In Theaters"
                         items={boxOffice.data}
                         isLoading={boxOffice.isLoading}
                         error={boxOffice.error}
                     />
                 </ContentSection>
 
-                {/* Most Watched */}
-                <ContentSection label="Most Watched This Week" icon={Film} delay={300}>
+                {/* Top Rated */}
+                <ContentSection label="Top Rated" icon={Film} delay={300}>
                     <MediaSection
                         title="Movies"
                         items={mostWatchedMovies.data}

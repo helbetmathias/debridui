@@ -35,7 +35,7 @@ export const SeasonCard = memo(function SeasonCard({
     const prefetchSeason = () => {
         if (!mediaId) return;
         queryClient.prefetchQuery({
-            queryKey: ["trakt", "season", "episodes", mediaId, season.number],
+            queryKey: ["tmdb", "season", "episodes", mediaId, season.number],
             queryFn: () => traktClient.getShowEpisodes(mediaId, season.number),
         });
     };

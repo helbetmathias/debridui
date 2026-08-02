@@ -29,7 +29,7 @@ export async function recordPlayback(input: z.infer<typeof recordPlaybackSchema>
     const validated = recordPlaybackSchema.parse(input);
     const { imdbId, type, media, tvParams } = validated;
 
-    // Extract and resolve poster URL from images (handles relative Trakt URLs)
+    // Extract and resolve poster URL from provider images
     const posterUrl = getPosterUrl(media.images);
 
     try {

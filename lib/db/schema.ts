@@ -84,10 +84,10 @@ export const playbackHistory = pgTable(
     ]
 );
 
-// Trakt-specific metadata for a search-history entry.
-// Future providers slot in here as new members of the union (kind: "file", "query", etc.)
-export type TraktSearchMetadata = {
-    kind: "trakt";
+// Media-provider metadata for a search-history entry. The legacy `trakt` kind
+// remains readable so existing history survives the TMDB migration.
+export type MediaSearchMetadata = {
+    kind: "trakt" | "tmdb";
     type: "movie" | "show";
     slug?: string;
     imdbId?: string;
@@ -98,7 +98,7 @@ export type TraktSearchMetadata = {
     subtitle?: string;
 };
 
-export type SearchHistoryMetadata = TraktSearchMetadata;
+export type SearchHistoryMetadata = MediaSearchMetadata;
 
 // Search history table — provider-agnostic. Stores items the user clicked through
 // from a search result so they can be re-surfaced as recent picks.
@@ -111,7 +111,7 @@ export const searchHistory = pgTable(
             .references(() => user.id, { onDelete: "cascade" }),
 
         // Polymorphic identity — uniqueness is (user, provider, providerId)
-        provider: text("provider").notNull(), // "trakt" | future: "file" | "source" | "query"
+        provider: text("provider").notNull(), // "tmdb" | legacy "trakt" | future providers
         providerId: text("provider_id").notNull(), // stringified id within provider
 
         // Generic display field shared by every provider

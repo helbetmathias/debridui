@@ -20,7 +20,7 @@ const siteConfig = {
         "file manager",
         "media streaming",
         "download manager",
-        "trakt",
+        "tmdb",
         "media discovery",
     ],
 };

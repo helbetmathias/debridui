@@ -71,23 +71,31 @@ export const removePlaybackSchema = z.object({
 
 // Search history schemas — polymorphic by provider via a discriminated union.
 // Adding a new provider (e.g. "file") is a new entry in the union below.
+const mediaSearchMetadataSchema = z.object({
+    type: z.enum(["movie", "show"]),
+    slug: z.string().optional(),
+    imdbId: z.string().optional(),
+    year: z.number().int().optional(),
+    rating: z.number().optional(),
+    posterUrl: z.string().optional(),
+    subtitle: z.string().optional(),
+});
+
 const traktSearchPickSchema = z.object({
     provider: z.literal("trakt"),
     providerId: z.string().min(1),
     title: z.string().min(1),
-    metadata: z.object({
-        kind: z.literal("trakt"),
-        type: z.enum(["movie", "show"]),
-        slug: z.string().optional(),
-        imdbId: z.string().optional(),
-        year: z.number().int().optional(),
-        rating: z.number().optional(),
-        posterUrl: z.string().optional(),
-        subtitle: z.string().optional(),
-    }),
+    metadata: mediaSearchMetadataSchema.extend({ kind: z.literal("trakt") }),
 });
 
-export const recordSearchPickSchema = z.discriminatedUnion("provider", [traktSearchPickSchema]);
+const tmdbSearchPickSchema = z.object({
+    provider: z.literal("tmdb"),
+    providerId: z.string().min(1),
+    title: z.string().min(1),
+    metadata: mediaSearchMetadataSchema.extend({ kind: z.literal("tmdb") }),
+});
+
+export const recordSearchPickSchema = z.discriminatedUnion("provider", [traktSearchPickSchema, tmdbSearchPickSchema]);
 
 export const removeSearchPickSchema = z.object({
     provider: z.string().min(1),

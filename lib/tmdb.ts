@@ -58,9 +58,7 @@ export interface TMDBEpisodeGroupDetails {
 
 // Configuration interface
 export interface TMDBClientConfig {
-    apiKey: string;
     baseUrl?: string;
-    apiVersion?: string;
 }
 
 // Error class
@@ -77,13 +75,9 @@ export class TMDBError extends Error {
 
 export class TMDBClient {
     private readonly baseUrl: string;
-    private readonly apiKey: string;
-    private readonly apiVersion: string;
 
-    constructor(config: TMDBClientConfig) {
-        this.baseUrl = config.baseUrl || "https://api.themoviedb.org";
-        this.apiKey = config.apiKey;
-        this.apiVersion = config.apiVersion || "3";
+    constructor(config: TMDBClientConfig = {}) {
+        this.baseUrl = config.baseUrl || "/api/tmdb/raw";
     }
 
     /**
@@ -104,12 +98,12 @@ export class TMDBClient {
         params: Record<string, string | number> = {},
         options: RequestInit = {}
     ): Promise<T> {
-        const searchParams = new URLSearchParams({
-            api_key: this.apiKey,
-            ...Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)])),
-        });
+        const searchParams = new URLSearchParams(
+            Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)]))
+        );
 
-        const url = `${this.baseUrl}/${this.apiVersion}${endpoint}?${searchParams}`;
+        const query = searchParams.size ? `?${searchParams}` : "";
+        const url = `${this.baseUrl}${endpoint}${query}`;
 
         try {
             const response = await fetch(url, {
@@ -160,7 +154,6 @@ export class TMDBClient {
     }
 }
 
-export function createTMDBClient(apiKey?: string): TMDBClient | null {
-    if (!apiKey) return null;
-    return new TMDBClient({ apiKey });
+export function createTMDBClient(): TMDBClient {
+    return new TMDBClient();
 }

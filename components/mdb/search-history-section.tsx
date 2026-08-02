@@ -24,7 +24,8 @@ interface SearchHistorySectionProps {
 /** Derive the route URL for a history entry. URL structure lives here so it can change without a backfill. */
 function deriveHref(entry: SearchHistory): string {
     switch (entry.metadata.kind) {
-        case "trakt": {
+        case "trakt":
+        case "tmdb": {
             const m = entry.metadata;
             return `/${m.type}s/${m.slug ?? m.imdbId ?? entry.providerId}`;
         }
@@ -36,6 +37,7 @@ function deriveHref(entry: SearchHistory): string {
 function deriveKicker(entry: SearchHistory): string {
     switch (entry.metadata.kind) {
         case "trakt":
+        case "tmdb":
             return entry.metadata.type === "movie" ? "Film" : "Series";
         default:
             return entry.provider;
@@ -43,22 +45,22 @@ function deriveKicker(entry: SearchHistory): string {
 }
 
 function derivePoster(entry: SearchHistory): string | undefined {
-    if (entry.metadata.kind === "trakt") return entry.metadata.posterUrl;
+    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.posterUrl;
     return undefined;
 }
 
 function deriveSubtitle(entry: SearchHistory): string | undefined {
-    if (entry.metadata.kind === "trakt") return entry.metadata.subtitle;
+    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.subtitle;
     return undefined;
 }
 
 function deriveYear(entry: SearchHistory): number | undefined {
-    if (entry.metadata.kind === "trakt") return entry.metadata.year;
+    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.year;
     return undefined;
 }
 
 function deriveRating(entry: SearchHistory): number | undefined {
-    if (entry.metadata.kind === "trakt") return entry.metadata.rating;
+    if (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") return entry.metadata.rating;
     return undefined;
 }
 
@@ -78,7 +80,8 @@ const HistoryRow = memo(function HistoryRow({
     const subtitle = deriveSubtitle(entry);
     const year = deriveYear(entry);
     const rating = deriveRating(entry);
-    const isMovie = entry.metadata.kind === "trakt" && entry.metadata.type === "movie";
+    const isMovie =
+        (entry.metadata.kind === "trakt" || entry.metadata.kind === "tmdb") && entry.metadata.type === "movie";
     const Icon = isMovie ? Film : Tv;
 
     return (
@@ -172,7 +175,14 @@ export const SearchHistorySection = memo(function SearchHistorySection({
                 provider: "trakt",
                 providerId: entry.providerId,
                 title: entry.title,
-                metadata: entry.metadata,
+                metadata: { ...entry.metadata, kind: "trakt" },
+            });
+        } else if (entry.metadata.kind === "tmdb") {
+            recordPick({
+                provider: "tmdb",
+                providerId: entry.providerId,
+                title: entry.title,
+                metadata: { ...entry.metadata, kind: "tmdb" },
             });
         }
         onItemClick?.();

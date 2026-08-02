@@ -29,7 +29,7 @@ export function cdnUrl(url: string, options?: CdnOptions): string {
 
 // -- Image URL resolvers --
 
-// Handles both relative paths (Trakt/fanart.tv) and full URLs (Stremio addons)
+// Handles both relative provider paths and full URLs (TMDB and Stremio addons)
 function resolveImageUrl(url: string): string {
     return url.startsWith("http") ? url : `https://${url}`;
 }

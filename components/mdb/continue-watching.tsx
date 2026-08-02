@@ -44,7 +44,7 @@ function useNextEpisode(
     episode: number | null
 ): TvSearchParams | null {
     const { data: seasons } = useQuery({
-        queryKey: ["trakt", "show", "seasons", imdbId],
+        queryKey: ["tmdb", "show", "seasons", imdbId],
         queryFn: () => traktClient.getShowSeasons(imdbId),
         staleTime: 24 * 60 * 60 * 1000,
         enabled: type === "show" && !!season && !!episode,

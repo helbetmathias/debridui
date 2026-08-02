@@ -232,19 +232,6 @@ const PersonHeader = memo(function PersonHeader({
                                     TMDB
                                 </Link>
                             )}
-                            {person.ids?.trakt && (
-                                <Link
-                                    href={`https://trakt.tv/people/${person.ids.slug || person.ids.trakt}`}
-                                    target="_blank"
-                                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                                    <img
-                                        src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/trakt.svg"
-                                        alt=""
-                                        className="size-4 opacity-60 dark:invert"
-                                    />
-                                    Trakt
-                                </Link>
-                            )}
                             {person.social_ids?.twitter && (
                                 <Link
                                     href={`https://twitter.com/${person.social_ids.twitter}`}

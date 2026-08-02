@@ -17,7 +17,7 @@ function createTraktHook<T extends any[], R>(
 ) {
     return (...args: T): UseQueryResult<R> => {
         return useQuery({
-            queryKey: ["trakt", ...keyParts, ...args],
+            queryKey: ["tmdb", ...keyParts, ...args],
             queryFn: () => fn(...args),
             staleTime: cacheDuration,
         });
@@ -107,7 +107,7 @@ export const useTraktSeasonEpisodes = createTraktHook(
 // Combined hooks
 export function useTraktTrendingMixed(limit = 20) {
     return useQuery({
-        queryKey: ["trakt", "mixed", "trending", limit],
+        queryKey: ["tmdb", "mixed", "trending", limit],
         queryFn: () => traktClient.getTrendingMixed(limit),
         staleTime: CACHE_DURATION.STANDARD,
     });
@@ -126,14 +126,14 @@ export function useTraktMedia({
     idType?: TraktIdType;
 }) {
     const direct = useQuery({
-        queryKey: ["trakt", "media", id, type],
+        queryKey: ["tmdb", "media", id, type],
         queryFn: () => (type === "movie" ? traktClient.getMovie(id) : traktClient.getShow(id)),
         staleTime: CACHE_DURATION.LONG,
         enabled: !!id && !!type,
     });
 
     const lookup = useQuery({
-        queryKey: ["trakt", "lookup", idType, id],
+        queryKey: ["tmdb", "lookup", idType, id],
         queryFn: () => traktClient.idLookup(idType, id),
         staleTime: CACHE_DURATION.LONG,
         enabled: !!id && !type,
@@ -159,7 +159,7 @@ export const useTraktShowEpisodes = useTraktSeasonEpisodes;
 
 export function useTraktPeople(id: string, type: "movies" | "shows" = "movies") {
     return useQuery({
-        queryKey: ["trakt", "people", id, type],
+        queryKey: ["tmdb", "people", id, type],
         queryFn: () => traktClient.getPeople(id, type),
         staleTime: CACHE_DURATION.LONG,
     });

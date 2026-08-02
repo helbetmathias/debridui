@@ -325,7 +325,7 @@ export type MediaTypeEndpoint = "movies" | "shows";
 
 // Configuration interface
 export interface TraktClientConfig {
-    clientId: string;
+    clientId?: string;
     accessToken?: string;
     baseUrl?: string;
     apiVersion?: string;
@@ -345,12 +345,12 @@ export class TraktError extends Error {
 
 export class TraktClient {
     private readonly baseUrl: string;
-    private readonly clientId: string;
+    private readonly clientId?: string;
     private readonly apiVersion: string;
     private accessToken?: string;
 
     constructor(config: TraktClientConfig) {
-        this.baseUrl = config.baseUrl || "https://api.trakt.tv";
+        this.baseUrl = config.baseUrl || "/api/tmdb";
         this.clientId = config.clientId;
         this.accessToken = config.accessToken;
         this.apiVersion = config.apiVersion || "2";
@@ -374,11 +374,14 @@ export class TraktClient {
      * Create headers for API requests
      */
     private createHeaders(requiresAuth = false): HeadersInit {
-        const headers: HeadersInit = {
+        const headers: Record<string, string> = {
             "Content-Type": "application/json",
-            "trakt-api-version": this.apiVersion,
-            "trakt-api-key": this.clientId,
         };
+
+        if (this.clientId) {
+            headers["trakt-api-version"] = this.apiVersion;
+            headers["trakt-api-key"] = this.clientId;
+        }
 
         if (requiresAuth) {
             if (!this.accessToken) {
@@ -418,7 +421,8 @@ export class TraktClient {
             });
 
             if (!response.ok) {
-                throw new TraktError(`API request failed: ${response.statusText}`, response.status, endpoint);
+                const body = (await response.json().catch(() => null)) as { error?: string } | null;
+                throw new TraktError(body?.error || `API request failed: ${response.statusText}`, response.status, endpoint);
             }
 
             // Handle empty responses (204 No Content)
@@ -504,16 +508,14 @@ export class TraktClient {
      * Get popular movies
      */
     public async getPopularMovies(limit = 20, extended = "full,images"): Promise<TraktMediaItem[]> {
-        const movies = await this.makeRequest<TraktMedia[]>(`/movies/popular?limit=${limit}`, {}, false, extended);
-        return movies.map((movie) => ({ movie }));
+        return this.makeRequest<TraktMediaItem[]>(`/movies/popular?limit=${limit}`, {}, false, extended);
     }
 
     /**
      * Get popular shows
      */
     public async getPopularShows(limit = 20, extended = "full,images"): Promise<TraktMediaItem[]> {
-        const shows = await this.makeRequest<TraktMedia[]>(`/shows/popular?limit=${limit}`, {}, false, extended);
-        return shows.map((show) => ({ show }));
+        return this.makeRequest<TraktMediaItem[]>(`/shows/popular?limit=${limit}`, {}, false, extended);
     }
 
     /**
@@ -617,5 +619,5 @@ export class TraktClient {
 }
 
 export const traktClient = new TraktClient({
-    clientId: process.env.NEXT_PUBLIC_TRAKT_CLIENT_ID!,
+    baseUrl: "/api/tmdb",
 });

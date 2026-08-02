@@ -19,9 +19,9 @@ export function useSearchLogic({ query, enabled = true }: UseSearchLogicOptions)
     const minQueryLength = 3;
     const shouldSearch = enabled && trimmedQuery.length >= minQueryLength;
 
-    // Trakt search for movies and TV shows
+    // TMDB search for movies and TV shows
     const { data: traktResults, isLoading: isTraktSearching } = useQuery({
-        queryKey: ["trakt", "search", query],
+        queryKey: ["tmdb", "search", query],
         queryFn: () => traktClient.search(query, ["movie", "show"]),
         enabled: shouldSearch,
         staleTime: 5 * 60 * 1000,

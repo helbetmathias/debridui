@@ -231,19 +231,6 @@ export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeade
                                         TMDB
                                     </Link>
                                 )}
-                                {media.ids.trakt && (
-                                    <Link
-                                        href={`https://trakt.tv/${type === "movie" ? "movies" : "shows"}/${media.ids.trakt}`}
-                                        target="_blank"
-                                        className="inline-flex items-center gap-1.5 lg:gap-2 text-muted-foreground hover:text-foreground transition-colors">
-                                        <img
-                                            src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/trakt.svg"
-                                            alt=""
-                                            className="size-3.5 lg:size-4 opacity-60 dark:invert"
-                                        />
-                                        Trakt
-                                    </Link>
-                                )}
                                 {type === "show" && media.ids?.imdb && (
                                     <Link
                                         href={`https://tvcharts.co/show/${media.ids?.imdb}`}
