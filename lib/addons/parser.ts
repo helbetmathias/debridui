@@ -1,4 +1,4 @@
-import type { Media, MediaItem } from "@/lib/trakt";
+import type { Media, MediaItem } from "@/lib/media";
 import { cdnUrl } from "@/lib/utils/media";
 import { formatSize } from "../utils";
 import { type AddonSource, type AddonStream, type CatalogMeta, Resolution, SourceQuality } from "./types";

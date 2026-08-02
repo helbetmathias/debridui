@@ -4,7 +4,7 @@ import { Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { memo, useState } from "react";
-import type { Media } from "@/lib/trakt";
+import type { Media } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import { getPosterUrl } from "@/lib/utils/media";
 

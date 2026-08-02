@@ -2,13 +2,13 @@
 
 import { memo } from "react";
 import { SectionDivider } from "@/components/section-divider";
-import type { TraktMedia } from "@/lib/trakt";
+import type { MediaDetails } from "@/lib/media";
 import { MediaHeader, MediaHeaderSkeleton } from "./media-header";
 import { PeopleSection } from "./people-section";
 import { Sources } from "./sources";
 
 interface MovieDetailsProps {
-    media?: TraktMedia;
+    media?: MediaDetails;
     mediaId: string;
 }
 

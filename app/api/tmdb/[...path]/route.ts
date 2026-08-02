@@ -4,21 +4,21 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { userSettings } from "@/lib/db/schema";
 import type {
-    TraktCastAndCrew,
-    TraktCrew,
-    TraktEpisode,
-    TraktImages,
-    TraktMedia,
-    TraktMediaItem,
-    TraktPerson,
-    TraktPersonFull,
-    TraktPersonMovieCredit,
-    TraktPersonMovieCredits,
-    TraktPersonShowCredit,
-    TraktPersonShowCredits,
-    TraktSearchResult,
-    TraktSeason,
-} from "@/lib/trakt";
+    CastAndCrew,
+    MediaCrew,
+    MediaEpisode,
+    MediaImageSet,
+    MediaDetails,
+    RankedMediaItem,
+    MediaPerson,
+    PersonDetails,
+    PersonMovieCredit,
+    PersonMovieCredits,
+    PersonShowCredit,
+    PersonShowCredits,
+    MediaSearchResult,
+    MediaSeason,
+} from "@/lib/media";
 
 const TMDB_API_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_URL = "https://image.tmdb.org/t/p";
@@ -146,14 +146,14 @@ interface TmdbPerson {
 
 type TmdbCredit = TmdbMedia &
     TmdbPerson & {
-    character?: string;
-    job?: string;
-    department?: string;
-    roles?: Array<{ character: string; episode_count: number }>;
-    jobs?: Array<{ job: string; episode_count: number }>;
-    total_episode_count?: number;
-    episode_count?: number;
-};
+        character?: string;
+        job?: string;
+        department?: string;
+        roles?: Array<{ character: string; episode_count: number }>;
+        jobs?: Array<{ job: string; episode_count: number }>;
+        total_episode_count?: number;
+        episode_count?: number;
+    };
 
 interface TmdbCredential {
     token?: string;
@@ -173,7 +173,7 @@ function image(path?: string | null, size = "original"): string[] {
     return path ? [`${TMDB_IMAGE_URL}/${size}${path}`] : [];
 }
 
-function mediaImages(item: TmdbMedia): TraktImages {
+function mediaImages(item: TmdbMedia): MediaImageSet {
     return {
         poster: image(item.poster_path, "w500"),
         fanart: image(item.backdrop_path, "w1280"),
@@ -194,7 +194,7 @@ function certification(item: TmdbMedia, type: "movie" | "show"): string | undefi
     return item.content_ratings?.results?.find((result) => result.iso_3166_1 === "US")?.rating || undefined;
 }
 
-function normalizeMedia(item: TmdbMedia, type: "movie" | "show"): TraktMedia {
+function normalizeMedia(item: TmdbMedia, type: "movie" | "show"): MediaDetails {
     const date = type === "movie" ? item.release_date : item.first_air_date;
     const externalIds = item.external_ids;
     const genreMap = type === "movie" ? MOVIE_GENRES : TV_GENRES;
@@ -208,8 +208,6 @@ function normalizeMedia(item: TmdbMedia, type: "movie" | "show"): TraktMedia {
         title: item.title || item.name || "Untitled",
         year: date ? Number.parseInt(date.slice(0, 4), 10) : 0,
         ids: {
-            // The normalized UI model still calls its provider id `trakt`; use the TMDB id during the migration.
-            trakt: item.id,
             slug: String(item.id),
             tmdb: item.id,
             imdb: item.imdb_id || externalIds?.imdb_id || undefined,
@@ -223,7 +221,10 @@ function normalizeMedia(item: TmdbMedia, type: "movie" | "show"): TraktMedia {
         runtime: item.runtime || item.episode_run_time?.[0] || undefined,
         language: item.original_language,
         country: item.production_countries?.[0]?.iso_3166_1 || item.origin_country?.[0],
-        trailer: trailer || fallbackTrailer ? `https://www.youtube.com/watch?v=${(trailer || fallbackTrailer)?.key}` : undefined,
+        trailer:
+            trailer || fallbackTrailer
+                ? `https://www.youtube.com/watch?v=${(trailer || fallbackTrailer)?.key}`
+                : undefined,
         homepage: item.homepage || undefined,
         status: item.status,
         aired_episodes: item.number_of_episodes,
@@ -231,11 +232,10 @@ function normalizeMedia(item: TmdbMedia, type: "movie" | "show"): TraktMedia {
     };
 }
 
-function normalizePerson(person: TmdbPerson): TraktPerson {
+function normalizePerson(person: TmdbPerson): MediaPerson {
     return {
         name: person.name,
         ids: {
-            trakt: person.id,
             slug: String(person.id),
             tmdb: person.id,
             imdb: person.imdb_id || person.external_ids?.imdb_id,
@@ -244,7 +244,7 @@ function normalizePerson(person: TmdbPerson): TraktPerson {
     };
 }
 
-function normalizePersonFull(person: TmdbPerson): TraktPersonFull {
+function normalizePersonFull(person: TmdbPerson): PersonDetails {
     return {
         ...normalizePerson(person),
         social_ids: {
@@ -306,15 +306,19 @@ async function tmdb<T>(endpoint: string, credential: TmdbCredential, params: Rec
 
 async function resolveMediaId(id: string, type: "movie" | "show", credential: TmdbCredential): Promise<number> {
     if (/^\d+$/.test(id)) return Number(id);
-    const result = await tmdb<{ movie_results: TmdbMedia[]; tv_results: TmdbMedia[] }>(`/find/${encodeURIComponent(id)}`, credential, {
-        external_source: id.startsWith("tt") ? "imdb_id" : "tvdb_id",
-    });
+    const result = await tmdb<{ movie_results: TmdbMedia[]; tv_results: TmdbMedia[] }>(
+        `/find/${encodeURIComponent(id)}`,
+        credential,
+        {
+            external_source: id.startsWith("tt") ? "imdb_id" : "tvdb_id",
+        }
+    );
     const media = type === "movie" ? result.movie_results[0] : result.tv_results[0];
     if (!media) throw new TmdbRequestError("Title not found", 404);
     return media.id;
 }
 
-async function mediaDetails(id: string, type: "movie" | "show", credential: TmdbCredential): Promise<TraktMedia> {
+async function mediaDetails(id: string, type: "movie" | "show", credential: TmdbCredential): Promise<MediaDetails> {
     const tmdbId = await resolveMediaId(id, type, credential);
     const append = type === "movie" ? "external_ids,videos,release_dates" : "external_ids,videos,content_ratings";
     const item = await tmdb<TmdbMedia>(`/${type === "movie" ? "movie" : "tv"}/${tmdbId}`, credential, {
@@ -328,26 +332,26 @@ async function mediaList(
     type: "movie" | "show",
     limit: number,
     credential: TmdbCredential
-): Promise<TraktMediaItem[]> {
+): Promise<RankedMediaItem[]> {
     const response = await tmdb<{ results: TmdbMedia[] }>(endpoint, credential);
     return response.results.slice(0, limit).map((item) => ({ [type]: normalizeMedia(item, type) }));
 }
 
-function crewDepartment(department?: string): keyof TraktCrew {
+function crewDepartment(department?: string): keyof MediaCrew {
     const normalized = department?.toLowerCase();
     if (normalized === "costume & make-up") return "costume & make-up";
     if (normalized === "visual effects") return "crew";
     if (normalized && ["production", "art", "crew", "directing", "writing", "sound", "camera"].includes(normalized)) {
-        return normalized as keyof TraktCrew;
+        return normalized as keyof MediaCrew;
     }
     return "crew";
 }
 
-async function mediaPeople(id: string, type: "movie" | "show", credential: TmdbCredential): Promise<TraktCastAndCrew> {
+async function mediaPeople(id: string, type: "movie" | "show", credential: TmdbCredential): Promise<CastAndCrew> {
     const tmdbId = await resolveMediaId(id, type, credential);
     const endpoint = type === "movie" ? `/movie/${tmdbId}/credits` : `/tv/${tmdbId}/aggregate_credits`;
     const response = await tmdb<{ cast: TmdbCredit[]; crew: TmdbCredit[] }>(endpoint, credential);
-    const crew: TraktCrew = {};
+    const crew: MediaCrew = {};
 
     for (const member of response.crew) {
         const department = crewDepartment(member.department);
@@ -367,19 +371,19 @@ async function mediaPeople(id: string, type: "movie" | "show", credential: TmdbC
     };
 }
 
-function groupMovieCrew(credits: TmdbCredit[]): NonNullable<TraktPersonMovieCredits["crew"]> {
-    const crew: Record<string, TraktPersonMovieCredit[]> = {};
+function groupMovieCrew(credits: TmdbCredit[]): NonNullable<PersonMovieCredits["crew"]> {
+    const crew: Record<string, PersonMovieCredit[]> = {};
     for (const credit of credits) {
         const department = crewDepartment(credit.department);
         const departmentCredits = crew[department] ?? [];
         departmentCredits.push({ jobs: credit.job ? [credit.job] : [], movie: normalizeMedia(credit, "movie") });
         crew[department] = departmentCredits;
     }
-    return crew as NonNullable<TraktPersonMovieCredits["crew"]>;
+    return crew as NonNullable<PersonMovieCredits["crew"]>;
 }
 
-function groupShowCrew(credits: TmdbCredit[]): NonNullable<TraktPersonShowCredits["crew"]> {
-    const crew: Record<string, TraktPersonShowCredit[]> = {};
+function groupShowCrew(credits: TmdbCredit[]): NonNullable<PersonShowCredits["crew"]> {
+    const crew: Record<string, PersonShowCredit[]> = {};
     for (const credit of credits) {
         const department = crewDepartment(credit.department);
         const departmentCredits = crew[department] ?? [];
@@ -390,18 +394,21 @@ function groupShowCrew(credits: TmdbCredit[]): NonNullable<TraktPersonShowCredit
         });
         crew[department] = departmentCredits;
     }
-    return crew as NonNullable<TraktPersonShowCredits["crew"]>;
+    return crew as NonNullable<PersonShowCredits["crew"]>;
 }
 
 async function personCredits(
     id: string,
     type: "movie" | "show",
     credential: TmdbCredential
-): Promise<TraktPersonMovieCredits | TraktPersonShowCredits> {
+): Promise<PersonMovieCredits | PersonShowCredits> {
     const tmdbId = Number(id);
     if (!Number.isFinite(tmdbId)) throw new TmdbRequestError("Person not found", 404);
     const namespace = type === "movie" ? "movie_credits" : "tv_credits";
-    const response = await tmdb<{ cast: TmdbCredit[]; crew: TmdbCredit[] }>(`/person/${tmdbId}/${namespace}`, credential);
+    const response = await tmdb<{ cast: TmdbCredit[]; crew: TmdbCredit[] }>(
+        `/person/${tmdbId}/${namespace}`,
+        credential
+    );
 
     if (type === "movie") {
         return {
@@ -425,11 +432,14 @@ async function personCredits(
 async function handleSearch(path: string[], request: NextRequest, credential: TmdbCredential) {
     if (path.length === 2) {
         const query = request.nextUrl.searchParams.get("query") || "";
-        const response = await tmdb<{ results: TmdbMedia[] }>("/search/multi", credential, { query, include_adult: "false" });
+        const response = await tmdb<{ results: TmdbMedia[] }>("/search/multi", credential, {
+            query,
+            include_adult: "false",
+        });
         return response.results
             .filter((item) => item.media_type === "movie" || item.media_type === "tv")
             .map(
-                (item): TraktSearchResult => ({
+                (item): MediaSearchResult => ({
                     type: item.media_type === "movie" ? "movie" : "show",
                     score: item.popularity || 0,
                     ...(item.media_type === "movie"
@@ -440,9 +450,9 @@ async function handleSearch(path: string[], request: NextRequest, credential: Tm
     }
 
     const [, idType, id] = path;
-    if (!id || idType === "trakt") return [];
+    if (!id) return [];
     if (idType === "tmdb" && /^\d+$/.test(id)) {
-        const results: TraktSearchResult[] = [];
+        const results: MediaSearchResult[] = [];
         for (const type of ["movie", "show"] as const) {
             try {
                 const media = await mediaDetails(id, type, credential);
@@ -455,12 +465,20 @@ async function handleSearch(path: string[], request: NextRequest, credential: Tm
     }
 
     const externalSource = idType === "tvdb" ? "tvdb_id" : "imdb_id";
-    const response = await tmdb<{ movie_results: TmdbMedia[]; tv_results: TmdbMedia[] }>(`/find/${encodeURIComponent(id)}`, credential, {
-        external_source: externalSource,
-    });
+    const response = await tmdb<{ movie_results: TmdbMedia[]; tv_results: TmdbMedia[] }>(
+        `/find/${encodeURIComponent(id)}`,
+        credential,
+        {
+            external_source: externalSource,
+        }
+    );
     return [
-        ...response.movie_results.map((item): TraktSearchResult => ({ type: "movie", score: 1, movie: normalizeMedia(item, "movie") })),
-        ...response.tv_results.map((item): TraktSearchResult => ({ type: "show", score: 1, show: normalizeMedia(item, "show") })),
+        ...response.movie_results.map(
+            (item): MediaSearchResult => ({ type: "movie", score: 1, movie: normalizeMedia(item, "movie") })
+        ),
+        ...response.tv_results.map(
+            (item): MediaSearchResult => ({ type: "show", score: 1, show: normalizeMedia(item, "show") })
+        ),
     ];
 }
 
@@ -495,11 +513,11 @@ async function handleShows(path: string[], request: NextRequest, credential: Tmd
     if (subresource === "seasons" && season && tail === "episodes") {
         const result = await tmdb<{ episodes: TmdbEpisode[] }>(`/tv/${tmdbId}/season/${season}`, credential);
         return result.episodes.map(
-            (episode): TraktEpisode => ({
+            (episode): MediaEpisode => ({
                 season: episode.season_number,
                 number: episode.episode_number,
                 title: episode.name,
-                ids: { trakt: episode.id, slug: String(episode.id), tmdb: episode.id },
+                ids: { slug: String(episode.id), tmdb: episode.id },
                 images: {
                     ...mediaImages({ id: episode.id, backdrop_path: episode.still_path }),
                     screenshot: image(episode.still_path, "w500"),
@@ -516,9 +534,9 @@ async function handleShows(path: string[], request: NextRequest, credential: Tmd
     if (subresource === "seasons") {
         const show = await tmdb<TmdbMedia>(`/tv/${tmdbId}`, credential);
         return (show.seasons || []).map(
-            (item): TraktSeason => ({
+            (item): MediaSeason => ({
                 number: item.season_number,
-                ids: { trakt: item.id, slug: String(item.id), tmdb: item.id },
+                ids: { slug: String(item.id), tmdb: item.id },
                 images: { ...mediaImages({ id: item.id, poster_path: item.poster_path }) },
                 title: item.name,
                 overview: item.overview,

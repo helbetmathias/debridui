@@ -1,13 +1,13 @@
 "use client";
 
 import { memo } from "react";
-import type { TraktMedia } from "@/lib/trakt";
+import type { MediaDetails as MediaDetailsData } from "@/lib/media";
 import { MediaHeaderSkeleton } from "./media-header";
 import { MovieDetails } from "./movie-details";
 import { ShowDetails } from "./show-details";
 
 interface MediaDetailsProps {
-    media?: TraktMedia;
+    media?: MediaDetailsData;
     mediaId: string;
     type?: "movie" | "show";
     error?: Error | null;

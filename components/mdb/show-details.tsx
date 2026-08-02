@@ -7,16 +7,16 @@ import { SectionDivider } from "@/components/section-divider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTMDBEpisodeGroupDetails, useTMDBSeriesEpisodeGroups } from "@/hooks/use-tmdb";
-import { useTraktShowEpisodes, useTraktShowSeasons } from "@/hooks/use-trakt";
+import { useShowEpisodes, useShowSeasons } from "@/hooks/use-media";
 import type { TMDBEpisodeGroupEpisode } from "@/lib/tmdb";
-import type { TraktEpisode, TraktImages, TraktMedia, TraktSeason } from "@/lib/trakt";
+import type { MediaEpisode, MediaImageSet, MediaDetails, MediaSeason } from "@/lib/media";
 import { EpisodeCard } from "./episode-card";
 import { MediaHeader, MediaHeaderSkeleton } from "./media-header";
 import { PeopleSection } from "./people-section";
 import { SeasonCard } from "./season-card";
 
 interface ShowDetailsProps {
-    media?: TraktMedia;
+    media?: MediaDetails;
     mediaId: string;
 }
 
@@ -27,9 +27,9 @@ function EpisodeList({
     showMedia,
 }: {
     label: string;
-    episodes: TraktEpisode[];
+    episodes: MediaEpisode[];
     imdbId?: string;
-    showMedia: TraktMedia;
+    showMedia: MediaDetails;
 }) {
     return (
         <div className="space-y-4">
@@ -48,15 +48,15 @@ function EpisodeList({
     );
 }
 
-function tmdbEpisodeToTrakt(episode: TMDBEpisodeGroupEpisode, seasonOrder: number, index: number): TraktEpisode {
+function normalizeGroupedEpisode(episode: TMDBEpisodeGroupEpisode, seasonOrder: number, index: number): MediaEpisode {
     return {
         season: seasonOrder,
         number: index + 1,
         title: episode.name,
-        ids: { trakt: 0, slug: "", tmdb: episode.id },
+        ids: { slug: String(episode.id), tmdb: episode.id },
         // Only screenshot is used by EpisodeCard
         images: episode.still_path
-            ? ({ screenshot: [`image.tmdb.org/t/p/w500${episode.still_path}`] } as TraktImages)
+            ? ({ screenshot: [`image.tmdb.org/t/p/w500${episode.still_path}`] } as MediaImageSet)
             : undefined,
         overview: episode.overview,
         first_aired: episode.air_date,
@@ -74,9 +74,9 @@ const EpisodesSection = memo(function EpisodesSection({
     selectedSeason: number;
     episodeCount?: number;
     mediaId: string;
-    media: TraktMedia;
+    media: MediaDetails;
 }): React.ReactElement | null {
-    const { data: episodes, isLoading } = useTraktShowEpisodes(mediaId, selectedSeason);
+    const { data: episodes, isLoading } = useShowEpisodes(mediaId, selectedSeason);
 
     if (!isLoading && (!episodes || episodes.length === 0)) return null;
 
@@ -126,7 +126,7 @@ export const ShowDetails = memo(function ShowDetails({ media, mediaId }: ShowDet
     const partParam = searchParams.get("part");
     const [selectedGroup, setSelectedGroup] = useState<string>(groupParam || "default");
     const [selectedGroupIndex, setSelectedGroupIndex] = useState<number>(partParam ? parseInt(partParam, 10) : 0);
-    const { data: seasons, isLoading: seasonsLoading } = useTraktShowSeasons(mediaId);
+    const { data: seasons, isLoading: seasonsLoading } = useShowSeasons(mediaId);
 
     // Derived from URL + seasons. `?season=latest` resolves to the latest season that has
     // already aired — excludes Specials and announced-but-unaired future seasons (no/future
@@ -186,13 +186,13 @@ export const ShowDetails = memo(function ShowDetails({ media, mediaId }: ShowDet
         [searchParams, router]
     );
 
-    // Filter out "specials" group (order 0), map to TraktSeason for SeasonCard reuse
+    // Filter out "specials" group (order 0), map to MediaSeason for SeasonCard reuse
     const filteredGroups = useMemo(() => {
         const groups = groupDetails?.groups.filter((g) => g.order !== 0);
         return groups?.map(
-            (g): TraktSeason => ({
+            (g): MediaSeason => ({
                 number: g.order,
-                ids: { trakt: 0, slug: "", tmdb: 0 },
+                ids: { slug: String(g.id), tmdb: 0 },
                 images: media?.images,
                 title: g.name,
                 episode_count: g.episodes.length,
@@ -200,10 +200,10 @@ export const ShowDetails = memo(function ShowDetails({ media, mediaId }: ShowDet
         );
     }, [groupDetails, media?.images]);
 
-    // Pre-map TMDB episodes to TraktEpisode format for the selected group
+    // Pre-map TMDB episodes to MediaEpisode format for the selected group
     const groupEpisodes = useMemo(() => {
         const group = groupDetails?.groups.filter((g) => g.order !== 0)[selectedGroupIndex];
-        return group?.episodes.map((ep, i) => tmdbEpisodeToTrakt(ep, group.order, i));
+        return group?.episodes.map((ep, i) => normalizeGroupedEpisode(ep, group.order, i));
     }, [groupDetails, selectedGroupIndex]);
 
     const episodeCount = seasons?.find((s) => s.number === selectedSeason)?.episode_count;

@@ -6,7 +6,7 @@ import { memo } from "react";
 import { ScrollCarousel } from "@/components/common/scroll-carousel";
 import { MediaCard } from "@/components/mdb/media-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { MediaItem } from "@/lib/trakt";
+import type { MediaItem } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 const GRID_ROWS: Record<number, string> = {

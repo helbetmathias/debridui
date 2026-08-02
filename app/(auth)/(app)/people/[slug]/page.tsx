@@ -9,19 +9,13 @@ import { MdbFooter } from "@/components/mdb/mdb-footer";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTraktPerson, useTraktPersonMovies, useTraktPersonShows } from "@/hooks/use-trakt";
-import type { TraktMedia, TraktPersonFull, TraktPersonMovieCredit, TraktPersonShowCredit } from "@/lib/trakt";
+import { useMediaPerson, useMediaPersonMovies, useMediaPersonShows } from "@/hooks/use-media";
+import type { MediaDetails, PersonDetails, PersonMovieCredit, PersonShowCredit } from "@/lib/media";
 import { calculateAge, formatLocalizedDate } from "@/lib/utils";
 import { getPosterUrl, resolveImageUrl } from "@/lib/utils/media";
 
 // Person Header Component
-const PersonHeader = memo(function PersonHeader({
-    person,
-    isLoading,
-}: {
-    person?: TraktPersonFull;
-    isLoading: boolean;
-}) {
+const PersonHeader = memo(function PersonHeader({ person, isLoading }: { person?: PersonDetails; isLoading: boolean }) {
     const [bioExpanded, setBioExpanded] = useState(false);
 
     if (isLoading) {
@@ -308,7 +302,7 @@ const CreditCard = memo(function CreditCard({
     role,
     episodeCount,
 }: {
-    media: TraktMedia;
+    media: MediaDetails;
     type: "movie" | "show";
     role?: string;
     episodeCount?: number;
@@ -379,7 +373,7 @@ const CreditsGrid = memo(function CreditsGrid({
     isLoading,
 }: {
     credits: Array<{
-        media: TraktMedia;
+        media: MediaDetails;
         type: "movie" | "show";
         role?: string;
         year?: number;
@@ -406,7 +400,7 @@ const CreditsGrid = memo(function CreditsGrid({
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3 sm:gap-4">
             {credits.map((credit, index) => (
                 <CreditCard
-                    key={`${credit.type}-${credit.media.ids?.trakt || index}`}
+                    key={`${credit.type}-${credit.media.ids?.tmdb || index}`}
                     media={credit.media}
                     type={credit.type}
                     role={credit.role}
@@ -419,15 +413,15 @@ const CreditsGrid = memo(function CreditsGrid({
 
 // Filmography Tabs Component
 const FilmographyTabs = memo(function FilmographyTabs({ slug }: { slug: string }) {
-    const { data: movieCredits, isLoading: moviesLoading } = useTraktPersonMovies(slug);
-    const { data: showCredits, isLoading: showsLoading } = useTraktPersonShows(slug);
+    const { data: movieCredits, isLoading: moviesLoading } = useMediaPersonMovies(slug);
+    const { data: showCredits, isLoading: showsLoading } = useMediaPersonShows(slug);
 
     const isLoading = moviesLoading || showsLoading;
 
     // Process and organize credits by department
     const organizedCredits = useMemo(() => {
         const acting: Array<{
-            media: TraktMedia;
+            media: MediaDetails;
             type: "movie" | "show";
             role?: string;
             year?: number;
@@ -460,7 +454,7 @@ const FilmographyTabs = memo(function FilmographyTabs({ slug }: { slug: string }
         });
 
         // Process movie crew
-        const processMovieCrew = (crewList: TraktPersonMovieCredit[] | undefined, target: typeof acting) => {
+        const processMovieCrew = (crewList: PersonMovieCredit[] | undefined, target: typeof acting) => {
             crewList?.forEach((credit) => {
                 target.push({
                     media: credit.movie,
@@ -472,7 +466,7 @@ const FilmographyTabs = memo(function FilmographyTabs({ slug }: { slug: string }
         };
 
         // Process show crew
-        const processShowCrew = (crewList: TraktPersonShowCredit[] | undefined, target: typeof acting) => {
+        const processShowCrew = (crewList: PersonShowCredit[] | undefined, target: typeof acting) => {
             crewList?.forEach((credit) => {
                 target.push({
                     media: credit.show,
@@ -508,11 +502,11 @@ const FilmographyTabs = memo(function FilmographyTabs({ slug }: { slug: string }
         ] as const;
         otherCrewDepts.forEach((dept) => {
             processMovieCrew(
-                movieCredits?.crew?.[dept as keyof typeof movieCredits.crew] as TraktPersonMovieCredit[] | undefined,
+                movieCredits?.crew?.[dept as keyof typeof movieCredits.crew] as PersonMovieCredit[] | undefined,
                 crew
             );
             processShowCrew(
-                showCredits?.crew?.[dept as keyof typeof showCredits.crew] as TraktPersonShowCredit[] | undefined,
+                showCredits?.crew?.[dept as keyof typeof showCredits.crew] as PersonShowCredit[] | undefined,
                 crew
             );
         });
@@ -520,12 +514,12 @@ const FilmographyTabs = memo(function FilmographyTabs({ slug }: { slug: string }
         // Created by (shows only)
         processShowCrew(showCredits?.crew?.["created by"], production);
 
-        // Sort all by year (newest first), dedupe by trakt id
+        // Sort all by year (newest first), dedupe by TMDB id
         const sortAndDedupe = (arr: typeof acting) => {
             const seen = new Set<number>();
             return arr
                 .filter((item) => {
-                    const id = item.media.ids?.trakt;
+                    const id = item.media.ids?.tmdb;
                     if (!id || seen.has(id)) return false;
                     seen.add(id);
                     return true;
@@ -647,7 +641,7 @@ const PersonPage = memo(function PersonPage() {
     const params = useParams();
     const slug = params.slug as string;
 
-    const { data: person, isLoading, error } = useTraktPerson(slug);
+    const { data: person, isLoading, error } = useMediaPerson(slug);
 
     if (error) {
         return (

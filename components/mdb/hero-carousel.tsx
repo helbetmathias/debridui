@@ -8,14 +8,14 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WatchButton } from "@/components/common/watch-button";
 import { Button } from "@/components/ui/button";
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem } from "@/components/ui/carousel";
-import { useTraktTrendingMixed } from "@/hooks/use-trakt";
-import type { TraktMediaItem } from "@/lib/trakt";
+import { useTrendingMixed } from "@/hooks/use-media";
+import type { RankedMediaItem } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import { getBackdropUrl, getPosterUrl } from "@/lib/utils/media";
 import { HeroCarouselSkeleton } from "./hero-carousel-skeleton";
 
 interface HeroSlideProps {
-    item: TraktMediaItem;
+    item: RankedMediaItem;
     index: number;
     total: number;
     isActive: boolean;
@@ -303,7 +303,7 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
         []
     );
 
-    const { data: items, isLoading } = useTraktTrendingMixed(10);
+    const { data: items, isLoading } = useTrendingMixed(10);
 
     const scrollPrev = useCallback(() => api?.scrollPrev(), [api]);
     const scrollNext = useCallback(() => api?.scrollNext(), [api]);
@@ -353,8 +353,8 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
                 }}
                 plugins={[autoplay, WheelGesturesPlugin()]}>
                 <CarouselContent className="ml-0">
-                    {mixed.map((item: TraktMediaItem, index: number) => (
-                        <CarouselItem key={(item.movie ?? item.show)?.ids?.trakt ?? `hero-${index}`} className="pl-0">
+                    {mixed.map((item: RankedMediaItem, index: number) => (
+                        <CarouselItem key={(item.movie ?? item.show)?.ids?.tmdb ?? `hero-${index}`} className="pl-0">
                             <HeroSlide item={item} index={index} total={mixed.length} isActive={index === current} />
                         </CarouselItem>
                     ))}

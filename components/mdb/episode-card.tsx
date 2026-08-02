@@ -4,7 +4,7 @@ import { ChevronDown, Play, Star } from "lucide-react";
 import { memo, useState } from "react";
 import { WatchButton } from "@/components/common/watch-button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { TraktEpisode, TraktMedia } from "@/lib/trakt";
+import type { MediaEpisode, MediaDetails } from "@/lib/media";
 import { cn, formatLocalizedDate } from "@/lib/utils";
 import { resolveImageUrl } from "@/lib/utils/media";
 import { Sources } from "./sources";
@@ -56,10 +56,10 @@ const ThumbnailContent = memo(function ThumbnailContent({
 });
 
 interface EpisodeCardProps {
-    episode: TraktEpisode;
+    episode: MediaEpisode;
     className?: string;
     imdbId?: string;
-    showMedia?: TraktMedia;
+    showMedia?: MediaDetails;
 }
 
 export const EpisodeCard = memo(function EpisodeCard({ episode, className, imdbId, showMedia }: EpisodeCardProps) {

@@ -3,13 +3,13 @@
 import { ArrowUpRight, Film, Star, Tv } from "lucide-react";
 import { memo } from "react";
 import { SearchItemWrapper } from "@/components/search-item-wrapper";
-import type { TraktSearchResult } from "@/lib/trakt";
+import type { MediaSearchResult } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import { getPosterUrl } from "@/lib/utils/media";
 
 interface SearchMediaItemProps {
-    result: TraktSearchResult;
-    onSelect: (result: TraktSearchResult) => void;
+    result: MediaSearchResult;
+    onSelect: (result: MediaSearchResult) => void;
     variant?: "modal" | "page";
     className?: string;
 }
@@ -33,7 +33,7 @@ export const SearchMediaItem = memo(function SearchMediaItem({
             data={result}
             variant={variant}
             onSelect={onSelect}
-            commandValue={`${type}-${media.ids?.trakt}-${media.title}`}
+            commandValue={`${type}-${media.ids?.tmdb}-${media.title}`}
             commandKeywords={[media.title, type, media.year?.toString() || ""]}
             className={className}>
             {/* Poster */}

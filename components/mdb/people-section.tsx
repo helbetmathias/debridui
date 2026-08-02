@@ -4,8 +4,8 @@ import { User } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTraktPeople } from "@/hooks/use-trakt";
-import type { TraktCastMember, TraktCrewMember } from "@/lib/trakt";
+import { useMediaPeople } from "@/hooks/use-media";
+import type { CastMember, CrewMember } from "@/lib/media";
 import { resolveImageUrl } from "@/lib/utils/media";
 
 interface PeopleSectionProps {
@@ -14,7 +14,7 @@ interface PeopleSectionProps {
 }
 
 export const PeopleSection = memo(function PeopleSection({ mediaId, type }: PeopleSectionProps) {
-    const { data: people, isLoading, error } = useTraktPeople(mediaId, type);
+    const { data: people, isLoading, error } = useMediaPeople(mediaId, type);
 
     if (error) {
         return null;
@@ -51,7 +51,7 @@ export const PeopleSection = memo(function PeopleSection({ mediaId, type }: Peop
                     <h3 className="text-xs tracking-widest uppercase text-muted-foreground">Cast</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
                         {people.cast.slice(0, 18).map((member) => (
-                            <PersonCard key={member.person.ids.trakt} person={member} type="cast" />
+                            <PersonCard key={member.person.ids.tmdb} person={member} type="cast" />
                         ))}
                     </div>
                 </div>
@@ -61,20 +61,18 @@ export const PeopleSection = memo(function PeopleSection({ mediaId, type }: Peop
 });
 
 interface PersonCardProps {
-    person: TraktCastMember | TraktCrewMember;
+    person: CastMember | CrewMember;
     type: "cast" | "crew";
 }
 
 function PersonCard({ person, type }: PersonCardProps) {
-    const imageUrl = person.person.images?.headshot?.[0]
-        ? resolveImageUrl(person.person.images.headshot[0])
-        : null;
+    const imageUrl = person.person.images?.headshot?.[0] ? resolveImageUrl(person.person.images.headshot[0]) : null;
     const slug = person.person.ids?.slug || person.person.ids?.imdb;
 
     const role =
         type === "cast"
-            ? (person as TraktCastMember).characters?.join(", ")
-            : (person as TraktCrewMember).jobs?.join(", ") || (person as TraktCrewMember).job?.join(", ");
+            ? (person as CastMember).characters?.join(", ")
+            : (person as CrewMember).jobs?.join(", ") || (person as CrewMember).job?.join(", ");
 
     const content = (
         <div className="space-y-3">

@@ -1,5 +1,5 @@
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { type TraktIdType, traktClient } from "@/lib/trakt";
+import { type MediaIdType, mediaClient } from "@/lib/media";
 
 // Cache duration constants
 const CACHE_DURATION = {
@@ -8,9 +8,9 @@ const CACHE_DURATION = {
     LONG: 24 * 60 * 60 * 1000, // 24 hours
 } as const;
 
-// Generic Trakt query hook factory
+// Generic TMDB-backed query hook factory
 // biome-ignore lint/suspicious/noExplicitAny: rest tuple type erases call-site inference; replace when a typed alternative emerges
-function createTraktHook<T extends any[], R>(
+function createMediaHook<T extends any[], R>(
     keyParts: string[],
     fn: (...args: T) => Promise<R>,
     cacheDuration: number
@@ -25,90 +25,90 @@ function createTraktHook<T extends any[], R>(
 }
 
 // List hooks - significantly reduced code
-export const useTraktTrendingMovies = createTraktHook(
+export const useTrendingMovies = createMediaHook(
     ["movies", "trending"],
-    (limit = 20) => traktClient.getTrendingMovies(limit),
+    (limit = 20) => mediaClient.getTrendingMovies(limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktTrendingShows = createTraktHook(
+export const useTrendingShows = createMediaHook(
     ["shows", "trending"],
-    (limit = 20) => traktClient.getTrendingShows(limit),
+    (limit = 20) => mediaClient.getTrendingShows(limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktPopularMovies = createTraktHook(
+export const usePopularMovies = createMediaHook(
     ["movies", "popular"],
-    (limit = 20) => traktClient.getPopularMovies(limit),
+    (limit = 20) => mediaClient.getPopularMovies(limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktPopularShows = createTraktHook(
+export const usePopularShows = createMediaHook(
     ["shows", "popular"],
-    (limit = 20) => traktClient.getPopularShows(limit),
+    (limit = 20) => mediaClient.getPopularShows(limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktMostWatchedMovies = createTraktHook(
+export const useMostWatchedMovies = createMediaHook(
     ["movies", "watched"],
-    (period = "weekly", limit = 20) => traktClient.getMostWatchedMovies(period, limit),
+    (period = "weekly", limit = 20) => mediaClient.getMostWatchedMovies(period, limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktMostWatchedShows = createTraktHook(
+export const useMostWatchedShows = createMediaHook(
     ["shows", "watched"],
-    (period = "weekly", limit = 20) => traktClient.getMostWatchedShows(period, limit),
+    (period = "weekly", limit = 20) => mediaClient.getMostWatchedShows(period, limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktAnticipatedMovies = createTraktHook(
+export const useAnticipatedMovies = createMediaHook(
     ["movies", "anticipated"],
-    (limit = 20) => traktClient.getAnticipatedMovies(limit),
+    (limit = 20) => mediaClient.getAnticipatedMovies(limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktAnticipatedShows = createTraktHook(
+export const useAnticipatedShows = createMediaHook(
     ["shows", "anticipated"],
-    (limit = 20) => traktClient.getAnticipatedShows(limit),
+    (limit = 20) => mediaClient.getAnticipatedShows(limit),
     CACHE_DURATION.STANDARD
 );
 
-export const useTraktBoxOfficeMovies = createTraktHook(
+export const useBoxOfficeMovies = createMediaHook(
     ["movies", "boxoffice"],
-    () => traktClient.getBoxOfficeMovies(),
+    () => mediaClient.getBoxOfficeMovies(),
     CACHE_DURATION.STANDARD
 );
 
 // Details hooks
-export const useTraktMovieDetails = createTraktHook(
+export const useMovieDetails = createMediaHook(
     ["movie"],
-    (slug: string) => traktClient.getMovie(slug),
+    (slug: string) => mediaClient.getMovie(slug),
     CACHE_DURATION.LONG
 );
 
-export const useTraktShowDetails = createTraktHook(
+export const useShowDetails = createMediaHook(
     ["show"],
-    (slug: string) => traktClient.getShow(slug),
+    (slug: string) => mediaClient.getShow(slug),
     CACHE_DURATION.LONG
 );
 
-export const useTraktShowSeasons = createTraktHook(
+export const useShowSeasons = createMediaHook(
     ["show", "seasons"],
-    (slug: string) => traktClient.getShowSeasons(slug),
+    (slug: string) => mediaClient.getShowSeasons(slug),
     CACHE_DURATION.LONG
 );
 
-export const useTraktSeasonEpisodes = createTraktHook(
+export const useMediaSeasonEpisodes = createMediaHook(
     ["season", "episodes"],
-    (slug: string, season: number) => traktClient.getShowEpisodes(slug, season),
+    (slug: string, season: number) => mediaClient.getShowEpisodes(slug, season),
     CACHE_DURATION.LONG
 );
 
 // Combined hooks
-export function useTraktTrendingMixed(limit = 20) {
+export function useTrendingMixed(limit = 20) {
     return useQuery({
         queryKey: ["tmdb", "mixed", "trending", limit],
-        queryFn: () => traktClient.getTrendingMixed(limit),
+        queryFn: () => mediaClient.getTrendingMixed(limit),
         staleTime: CACHE_DURATION.STANDARD,
     });
 }
@@ -116,25 +116,25 @@ export function useTraktTrendingMixed(limit = 20) {
 // Fetch media by id. When `type` is known (slug routes) it hits the type-specific
 // endpoint directly; when omitted (external-id routes) a single id-lookup resolves
 // both the type and the media. `idType` selects the external id namespace.
-export function useTraktMedia({
+export function useMediaDetails({
     id,
     type,
     idType = "imdb",
 }: {
     id: string;
     type?: "movie" | "show";
-    idType?: TraktIdType;
+    idType?: MediaIdType;
 }) {
     const direct = useQuery({
         queryKey: ["tmdb", "media", id, type],
-        queryFn: () => (type === "movie" ? traktClient.getMovie(id) : traktClient.getShow(id)),
+        queryFn: () => (type === "movie" ? mediaClient.getMovie(id) : mediaClient.getShow(id)),
         staleTime: CACHE_DURATION.LONG,
         enabled: !!id && !!type,
     });
 
     const lookup = useQuery({
         queryKey: ["tmdb", "lookup", idType, id],
-        queryFn: () => traktClient.idLookup(idType, id),
+        queryFn: () => mediaClient.idLookup(idType, id),
         staleTime: CACHE_DURATION.LONG,
         enabled: !!id && !type,
     });
@@ -155,30 +155,30 @@ export function useTraktMedia({
     };
 }
 
-export const useTraktShowEpisodes = useTraktSeasonEpisodes;
+export const useShowEpisodes = useMediaSeasonEpisodes;
 
-export function useTraktPeople(id: string, type: "movies" | "shows" = "movies") {
+export function useMediaPeople(id: string, type: "movies" | "shows" = "movies") {
     return useQuery({
         queryKey: ["tmdb", "people", id, type],
-        queryFn: () => traktClient.getPeople(id, type),
+        queryFn: () => mediaClient.getPeople(id, type),
         staleTime: CACHE_DURATION.LONG,
     });
 }
 
-export const useTraktPerson = createTraktHook(
+export const useMediaPerson = createMediaHook(
     ["person"],
-    (slug: string) => traktClient.getPerson(slug),
+    (slug: string) => mediaClient.getPerson(slug),
     CACHE_DURATION.LONG
 );
 
-export const useTraktPersonMovies = createTraktHook(
+export const useMediaPersonMovies = createMediaHook(
     ["person", "movies"],
-    (slug: string) => traktClient.getPersonMovies(slug),
+    (slug: string) => mediaClient.getPersonMovies(slug),
     CACHE_DURATION.LONG
 );
 
-export const useTraktPersonShows = createTraktHook(
+export const useMediaPersonShows = createMediaHook(
     ["person", "shows"],
-    (slug: string) => traktClient.getPersonShows(slug),
+    (slug: string) => mediaClient.getPersonShows(slug),
     CACHE_DURATION.LONG
 );

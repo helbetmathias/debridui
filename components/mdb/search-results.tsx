@@ -2,7 +2,7 @@
 
 import { Clapperboard, FolderClosed, Loader2, type LucideIcon, Magnet, Search } from "lucide-react";
 import type { TorBoxSearchResult } from "@/lib/clients/torbox";
-import type { TraktSearchResult } from "@/lib/trakt";
+import type { MediaSearchResult } from "@/lib/media";
 import type { DebridFile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SearchFileItem } from "./search-file-item";
@@ -13,13 +13,13 @@ import { SearchSourceItem } from "./search-source-item";
 interface SearchResultsProps {
     query: string;
     fileResults?: DebridFile[];
-    traktResults?: TraktSearchResult[];
+    mediaResults?: MediaSearchResult[];
     sourceResults?: TorBoxSearchResult[];
     isFileSearching: boolean;
-    isTraktSearching: boolean;
+    isMediaSearching: boolean;
     isSourceSearching: boolean;
     onFileSelect: (file: DebridFile) => void;
-    onMediaSelect: (result: TraktSearchResult) => void;
+    onMediaSelect: (result: MediaSearchResult) => void;
     onHistoryItemClick?: () => void;
     variant?: "modal" | "page";
     className?: string;
@@ -84,10 +84,10 @@ function SectionSkeleton({ rows = 3 }: { rows?: number }) {
 export function SearchResults({
     query,
     fileResults,
-    traktResults,
+    mediaResults,
     sourceResults,
     isFileSearching,
-    isTraktSearching,
+    isMediaSearching,
     isSourceSearching,
     onFileSelect,
     onMediaSelect,
@@ -97,11 +97,11 @@ export function SearchResults({
 }: SearchResultsProps) {
     const trimmedQuery = query.trim();
     const hasFileResults = !!fileResults?.length;
-    const hasTraktResults = !!traktResults?.length;
+    const hasMediaResults = !!mediaResults?.length;
     const hasSourceResults = !!sourceResults?.length;
     const isSearching = trimmedQuery.length > 2;
-    const bothLoaded = !isFileSearching && !isTraktSearching && !isSourceSearching;
-    const hasAnyResults = hasFileResults || hasTraktResults || hasSourceResults;
+    const bothLoaded = !isFileSearching && !isMediaSearching && !isSourceSearching;
+    const hasAnyResults = hasFileResults || hasMediaResults || hasSourceResults;
 
     if (trimmedQuery.length <= 2) {
         return (
@@ -128,7 +128,7 @@ export function SearchResults({
     const sectionsWrap = cn(isModal ? "py-4 space-y-8" : "space-y-10 sm:space-y-12", className);
     // In modal there's no outer page padding — align header with the row's image position (row uses px-4 lg:px-5)
     const headerPadding = isModal ? "px-4 lg:px-5" : undefined;
-    const totalCount = (fileResults?.length || 0) + (traktResults?.length || 0) + (sourceResults?.length || 0);
+    const totalCount = (fileResults?.length || 0) + (mediaResults?.length || 0) + (sourceResults?.length || 0);
 
     return (
         <div className={sectionsWrap}>
@@ -150,23 +150,23 @@ export function SearchResults({
             )}
 
             {/* Movies & Shows */}
-            {(hasTraktResults || (isTraktSearching && !hasAnyResults)) && (
+            {(hasMediaResults || (isMediaSearching && !hasAnyResults)) && (
                 <section className="space-y-4 sm:space-y-5">
                     <PageSectionHeader
                         icon={Clapperboard}
                         label="Movies & Shows"
-                        count={hasTraktResults ? traktResults.length : undefined}
-                        loading={isTraktSearching && !hasTraktResults}
+                        count={hasMediaResults ? mediaResults.length : undefined}
+                        loading={isMediaSearching && !hasMediaResults}
                         className={headerPadding}
                     />
-                    {hasTraktResults ? (
+                    {hasMediaResults ? (
                         <div className={listClass}>
-                            {traktResults.map((result) => {
+                            {mediaResults.map((result) => {
                                 const media = result.movie || result.show;
                                 const type = result.movie ? "movie" : "show";
                                 return (
                                     <SearchMediaItem
-                                        key={`${type}-${media?.ids?.trakt}`}
+                                        key={`${type}-${media?.ids?.tmdb}`}
                                         result={result}
                                         onSelect={onMediaSelect}
                                         variant={variant}

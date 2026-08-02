@@ -5,13 +5,13 @@ import { WatchButton } from "@/components/common/watch-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TraktMedia } from "@/lib/trakt";
+import type { MediaDetails } from "@/lib/media";
 import { getBackdropUrl, getPosterUrl } from "@/lib/utils/media";
 import { MediaOverview } from "./media-overview";
 import { MediaStats } from "./media-stats";
 
 interface MediaHeaderProps {
-    media: TraktMedia;
+    media: MediaDetails;
     mediaId: string;
     type: "movie" | "show";
 }

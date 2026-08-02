@@ -8,7 +8,7 @@ import { CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { useRecordSearchPick } from "@/hooks/use-search-history";
 import { useSearchLogic } from "@/hooks/use-search-logic";
-import type { TraktSearchResult } from "@/lib/trakt";
+import type { MediaSearchResult } from "@/lib/media";
 import type { DebridFile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { getPosterUrl } from "@/lib/utils/media";
@@ -55,7 +55,7 @@ export function SearchContent({
         return () => clearTimeout(timer);
     }, [query, syncQueryParam]);
 
-    const { fileResults, traktResults, sourceResults, isFileSearching, isTraktSearching, isSourceSearching } =
+    const { fileResults, mediaResults, sourceResults, isFileSearching, isMediaSearching, isSourceSearching } =
         useSearchLogic({
             query: debouncedQuery,
             enabled: true,
@@ -76,7 +76,7 @@ export function SearchContent({
     );
 
     const handleMediaSelect = useCallback(
-        async (result: TraktSearchResult) => {
+        async (result: MediaSearchResult) => {
             const media = result.movie || result.show;
             const slug = media?.ids?.slug || media?.ids?.imdb;
             if (!slug || !media) return;
@@ -118,7 +118,7 @@ export function SearchContent({
 
     const modalIsBusy =
         query.trim() !== "" &&
-        (query.trim() !== debouncedQuery || isFileSearching || isTraktSearching || isSourceSearching);
+        (query.trim() !== debouncedQuery || isFileSearching || isMediaSearching || isSourceSearching);
 
     if (variant === "modal") {
         return (
@@ -147,13 +147,13 @@ export function SearchContent({
                         // Remount whenever the result-set composition changes so cmdk re-registers items in DOM order.
                         // Without this, items registered earlier keep "first" status even after files
                         // mount above them — and cmdk navigates by registration order, not DOM order.
-                        key={`${debouncedQuery}:${!!fileResults?.length}:${!!traktResults?.length}:${!!sourceResults?.length}`}
+                        key={`${debouncedQuery}:${!!fileResults?.length}:${!!mediaResults?.length}:${!!sourceResults?.length}`}
                         query={debouncedQuery}
                         fileResults={fileResults}
-                        traktResults={traktResults}
+                        mediaResults={mediaResults}
                         sourceResults={sourceResults}
                         isFileSearching={isFileSearching}
-                        isTraktSearching={isTraktSearching}
+                        isMediaSearching={isMediaSearching}
                         isSourceSearching={isSourceSearching}
                         onFileSelect={handleFileSelect}
                         onMediaSelect={handleMediaSelect}
@@ -168,7 +168,7 @@ export function SearchContent({
     // Page variant
     const isBusy =
         query.trim() !== "" &&
-        (query.trim() !== debouncedQuery || isFileSearching || isTraktSearching || isSourceSearching);
+        (query.trim() !== debouncedQuery || isFileSearching || isMediaSearching || isSourceSearching);
 
     return (
         <div className={cn("space-y-8", className)}>
@@ -214,10 +214,10 @@ export function SearchContent({
             <SearchResults
                 query={debouncedQuery}
                 fileResults={fileResults}
-                traktResults={traktResults}
+                mediaResults={mediaResults}
                 sourceResults={sourceResults}
                 isFileSearching={isFileSearching}
-                isTraktSearching={isTraktSearching}
+                isMediaSearching={isMediaSearching}
                 isSourceSearching={isSourceSearching}
                 onFileSelect={handleFileSelect}
                 onMediaSelect={handleMediaSelect}
