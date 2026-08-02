@@ -19,8 +19,9 @@ export function useUserSettings() {
     return useQuery({
         queryKey: USER_SETTINGS_KEY,
         queryFn: () => getUserSettings(),
-        staleTime: 1 * 60 * 60 * 1000, // 1 hour
-        refetchOnWindowFocus: false,
+        staleTime: 60 * 1000,
+        refetchOnMount: "always",
+        refetchOnWindowFocus: true,
     });
 }
 

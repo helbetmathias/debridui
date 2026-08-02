@@ -11,7 +11,7 @@ import {
     useRemoveFromSearchHistory,
     useSearchHistory,
 } from "@/hooks/use-search-history";
-import type { SearchHistory } from "@/lib/db/schema";
+import type { SearchHistoryEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface SearchHistorySectionProps {
@@ -22,12 +22,12 @@ interface SearchHistorySectionProps {
 }
 
 /** Derive the route URL for a history entry. URL structure lives here so it can change without a backfill. */
-function deriveHref(entry: SearchHistory): string {
+function deriveHref(entry: SearchHistoryEntry): string {
     const metadata = entry.metadata;
     return `/${metadata.type}s/${metadata.slug ?? metadata.imdbId ?? entry.providerId}`;
 }
 
-function deriveKicker(entry: SearchHistory): string {
+function deriveKicker(entry: SearchHistoryEntry): string {
     return entry.metadata.type === "movie" ? "Film" : "Series";
 }
 
@@ -37,9 +37,9 @@ const HistoryRow = memo(function HistoryRow({
     onSelect,
     onRemove,
 }: {
-    entry: SearchHistory;
+    entry: SearchHistoryEntry;
     variant: "modal" | "page";
-    onSelect: (entry: SearchHistory) => void;
+    onSelect: (entry: SearchHistoryEntry) => void;
     onRemove: () => void;
 }) {
     const poster = entry.metadata.posterUrl;
@@ -134,7 +134,7 @@ export const SearchHistorySection = memo(function SearchHistorySection({
     const cap = limit ?? (isModal ? 8 : 20);
     const entries = history.slice(0, cap);
 
-    const handleSelect = async (entry: SearchHistory) => {
+    const handleSelect = async (entry: SearchHistoryEntry) => {
         try {
             await recordPick({
                 provider: "tmdb",
@@ -188,10 +188,10 @@ export const SearchHistorySection = memo(function SearchHistorySection({
                 open={confirmOpen}
                 onOpenChange={setConfirmOpen}
                 title="Clear search history?"
-                description="This will remove every entry from your recent searches. This action cannot be undone."
+                description="This removes the search history stored in this browser. This action cannot be undone."
                 confirmText="Clear all"
                 variant="destructive"
-                onConfirm={() => clearAll({})}
+                onConfirm={() => clearAll()}
             />
         </section>
     );

@@ -43,6 +43,13 @@
       "when": 1778699392370,
       "tag": "0005_search_history_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785670709203,
+      "tag": "0006_technical_cleanup",
+      "breakpoints": true
     }
   ]
 }

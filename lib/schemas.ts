@@ -58,12 +58,15 @@ export const recordSearchPickSchema = z.object({
     metadata: mediaSearchMetadataSchema.extend({ kind: z.literal("tmdb") }),
 });
 
+export const searchHistoryEntrySchema = recordSearchPickSchema.extend({
+    id: z.string().min(1),
+    updatedAt: z.string().datetime(),
+});
+
 export const removeSearchPickSchema = z.object({
     provider: z.literal("tmdb"),
     providerId: z.string().min(1),
 });
-
-export const clearSearchHistorySchema = z.object({});
 
 // User settings schema (snake_case for DB storage)
 export const serverSettingsSchema = z.object({

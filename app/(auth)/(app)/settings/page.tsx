@@ -526,9 +526,7 @@ export default function SettingsPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-sm border border-border/50 p-3">
                         <div>
                             <p className="text-sm">Search History</p>
-                            <p className="text-xs text-muted-foreground">
-                                Remove every recent pick from your search history
-                            </p>
+                            <p className="text-xs text-muted-foreground">Remove recent picks stored in this browser</p>
                         </div>
                         <Button variant="outline" onClick={() => setConfirmClearSearch(true)}>
                             Clear History
@@ -541,10 +539,10 @@ export default function SettingsPage() {
                 open={confirmClearSearch}
                 onOpenChange={setConfirmClearSearch}
                 title="Clear search history?"
-                description="This will remove every entry from your recent searches. This action cannot be undone."
+                description="This removes the search history stored in this browser. This action cannot be undone."
                 confirmText="Clear all"
                 variant="destructive"
-                onConfirm={() => clearSearch({})}
+                onConfirm={() => clearSearch()}
             />
 
             {/* About Section */}

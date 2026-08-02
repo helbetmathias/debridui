@@ -5,6 +5,7 @@ import {
     type addonSchema,
     type createAccountSchema,
     type fullAccountSchema,
+    type searchHistoryEntrySchema,
     type serverSettingsSchema,
 } from "./schemas";
 
@@ -14,6 +15,7 @@ export type CreateAccount = z.infer<typeof createAccountSchema>;
 export type FullAccount = z.infer<typeof fullAccountSchema>;
 export type CreateAddon = z.infer<typeof addonSchema>;
 export type ServerSettings = z.infer<typeof serverSettingsSchema>;
+export type SearchHistoryEntry = z.infer<typeof searchHistoryEntrySchema>;
 
 export enum FileType {
     VIDEO = "video",
