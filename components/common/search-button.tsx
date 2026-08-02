@@ -22,7 +22,7 @@ export const SearchButton = memo(function SearchButton({ className }: SearchButt
             <Search className="size-4" />
             <span className="hidden sm:inline ml-2">Search</span>
             <kbd className="hidden md:inline-flex ml-2 px-1.5 py-0.5 text-[10px] font-medium tracking-wide bg-muted/50 rounded">
-                ⌘K
+                Ctrl K
             </kbd>
         </Button>
     );

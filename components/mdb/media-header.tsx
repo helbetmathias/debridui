@@ -24,9 +24,9 @@ export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeade
     const kicker = type === "movie" ? "Film" : "Series";
 
     return (
-        <div className="relative">
+        <div className="relative isolate">
             {/* Backdrop — shorter on mobile, taller from md up */}
-            <div className="absolute inset-x-0 top-0 -mt-6 h-[42vh] sm:h-[50vh] md:h-[60vh] lg:h-[85vh] overflow-hidden left-1/2 -translate-x-1/2 w-screen">
+            <div className="absolute -z-10 pointer-events-none inset-x-0 top-0 -mt-6 h-[42vh] sm:h-[50vh] md:h-[60vh] lg:h-[85vh] overflow-hidden left-1/2 -translate-x-1/2 w-screen">
                 {backdropUrl ? (
                     <img
                         src={backdropUrl}
@@ -252,8 +252,8 @@ export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeade
 // Mirrors MediaHeader's exact layout/heights so the loaded header swaps in with no shift.
 export const MediaHeaderSkeleton = memo(function MediaHeaderSkeleton() {
     return (
-        <div className="relative">
-            <div className="absolute inset-x-0 top-0 -mt-6 h-[42vh] sm:h-[50vh] md:h-[60vh] lg:h-[85vh] overflow-hidden left-1/2 -translate-x-1/2 w-screen">
+        <div className="relative isolate">
+            <div className="absolute -z-10 pointer-events-none inset-x-0 top-0 -mt-6 h-[42vh] sm:h-[50vh] md:h-[60vh] lg:h-[85vh] overflow-hidden left-1/2 -translate-x-1/2 w-screen">
                 <Skeleton className="w-full h-full rounded-none opacity-60" />
                 <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent" />
                 <div className="absolute inset-0 bg-linear-to-r from-background/70 via-transparent to-background/70" />
