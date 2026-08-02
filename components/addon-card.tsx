@@ -18,6 +18,7 @@ interface AddonCardProps {
     onMoveDown?: (addon: Addon) => void;
     isFirst?: boolean;
     isLast?: boolean;
+    isReordering?: boolean;
 }
 
 export function AddonCardSkeleton() {
@@ -55,7 +56,16 @@ export function AddonCardSkeleton() {
     );
 }
 
-export function AddonCard({ addon, onToggle, onRemove, onMoveUp, onMoveDown, isFirst, isLast }: AddonCardProps) {
+export function AddonCard({
+    addon,
+    onToggle,
+    onRemove,
+    onMoveUp,
+    onMoveDown,
+    isFirst,
+    isLast,
+    isReordering,
+}: AddonCardProps) {
     const { data: manifest, isLoading } = useAddon({ addonId: addon.id, url: addon.url });
 
     return (
@@ -120,7 +130,7 @@ export function AddonCard({ addon, onToggle, onRemove, onMoveUp, onMoveDown, isF
                             variant="ghost"
                             size="icon"
                             onClick={() => onMoveUp(addon)}
-                            disabled={isFirst}
+                            disabled={isFirst || isReordering}
                             aria-label={`Move ${addon.name} up`}
                             title="Move up">
                             <ArrowUp className="size-4" />
@@ -131,7 +141,7 @@ export function AddonCard({ addon, onToggle, onRemove, onMoveUp, onMoveDown, isF
                             variant="ghost"
                             size="icon"
                             onClick={() => onMoveDown(addon)}
-                            disabled={isLast}
+                            disabled={isLast || isReordering}
                             aria-label={`Move ${addon.name} down`}
                             title="Move down">
                             <ArrowDown className="size-4" />

@@ -102,7 +102,7 @@ export default function AddonsPage() {
         toast.success(`${addon.enabled ? "Disabled" : "Enabled"} ${addon.name} addon`);
     };
 
-    const handleMoveUp = async (addon: Addon) => {
+    const handleMoveUp = (addon: Addon) => {
         const currentIndex = sortedAddons.findIndex((a) => a.id === addon.id);
 
         if (currentIndex > 0) {
@@ -110,11 +110,11 @@ export default function AddonsPage() {
                 { id: sortedAddons[currentIndex].id, order: sortedAddons[currentIndex - 1].order },
                 { id: sortedAddons[currentIndex - 1].id, order: sortedAddons[currentIndex].order },
             ];
-            await updateOrdersMutation.mutateAsync(updates);
+            updateOrdersMutation.mutate(updates);
         }
     };
 
-    const handleMoveDown = async (addon: Addon) => {
+    const handleMoveDown = (addon: Addon) => {
         const currentIndex = sortedAddons.findIndex((a) => a.id === addon.id);
 
         if (currentIndex < sortedAddons.length - 1) {
@@ -122,7 +122,7 @@ export default function AddonsPage() {
                 { id: sortedAddons[currentIndex].id, order: sortedAddons[currentIndex + 1].order },
                 { id: sortedAddons[currentIndex + 1].id, order: sortedAddons[currentIndex].order },
             ];
-            await updateOrdersMutation.mutateAsync(updates);
+            updateOrdersMutation.mutate(updates);
         }
     };
 
@@ -261,6 +261,7 @@ export default function AddonsPage() {
                                 onMoveDown={handleMoveDown}
                                 isFirst={index === 0}
                                 isLast={index === sortedAddons.length - 1}
+                                isReordering={updateOrdersMutation.isPending}
                             />
                         ))}
                     </div>

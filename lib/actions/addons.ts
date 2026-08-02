@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -118,7 +118,8 @@ export async function toggleAddon(addonId: string, enabled: boolean) {
 
 /**
  * Update addon orders (for reordering)
- * Uses deferrable constraint to allow swapping without conflicts
+ * Stages affected rows above the current maximum before assigning their final
+ * positions. This works whether the optional unique order constraint exists or not.
  */
 export async function updateAddonOrders(updates: { id: string; order: number }[]) {
     const session = await auth.api.getSession({
@@ -132,10 +133,31 @@ export async function updateAddonOrders(updates: { id: string; order: number }[]
     const validated = addonOrderUpdateSchema.parse(updates);
 
     await db.transaction(async (tx) => {
-        // Defer constraint checking until transaction commit
-        await tx.execute(sql`SET CONSTRAINTS unique_user_order DEFERRED`);
+        const ids = validated.map(({ id }) => id);
+        const ownedAddons = await tx
+            .select({ id: addons.id })
+            .from(addons)
+            .where(and(eq(addons.userId, session.user.id), inArray(addons.id, ids)));
 
-        // Directly update each addon to its new order
+        if (ownedAddons.length !== ids.length) {
+            throw new Error("One or more addons could not be reordered");
+        }
+
+        const [currentMaximum] = await tx
+            .select({ max: sql<number>`COALESCE(MAX(${addons.order}), -1)` })
+            .from(addons)
+            .where(eq(addons.userId, session.user.id));
+        const stagingStart = (currentMaximum?.max ?? -1) + 1;
+
+        // Vacate every destination first. Each temporary order is unique and
+        // higher than all current values, so immediate unique constraints are safe.
+        for (const [index, update] of validated.entries()) {
+            await tx
+                .update(addons)
+                .set({ order: stagingStart + index })
+                .where(and(eq(addons.id, update.id), eq(addons.userId, session.user.id)));
+        }
+
         for (const update of validated) {
             await tx
                 .update(addons)

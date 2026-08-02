@@ -33,12 +33,23 @@ export const addonSchema = z.object({
     enabled: z.boolean(),
 });
 
-export const addonOrderUpdateSchema = z.array(
-    z.object({
-        id: z.string().min(1, "Addon ID is required"),
-        order: z.number().int().min(0, "Order must be a non-negative integer"),
-    })
-);
+export const addonOrderUpdateSchema = z
+    .array(
+        z.object({
+            id: z.string().min(1, "Addon ID is required"),
+            order: z.number().int().min(0, "Order must be a non-negative integer"),
+        })
+    )
+    .min(1, "At least one addon is required")
+    .max(100, "Too many addons in one reorder")
+    .superRefine((updates, context) => {
+        if (new Set(updates.map(({ id }) => id)).size !== updates.length) {
+            context.addIssue({ code: "custom", message: "Addon IDs must be unique" });
+        }
+        if (new Set(updates.map(({ order }) => order)).size !== updates.length) {
+            context.addIssue({ code: "custom", message: "Addon orders must be unique" });
+        }
+    });
 
 // TMDB search history schemas
 const mediaSearchMetadataSchema = z.object({
