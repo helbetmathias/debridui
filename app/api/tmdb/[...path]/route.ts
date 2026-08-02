@@ -21,7 +21,8 @@ import type {
 } from "@/lib/trakt";
 
 const TMDB_API_URL = "https://api.themoviedb.org/3";
-const TMDB_IMAGE_URL = "https://image.tmdb.org/t/p/original";
+const TMDB_IMAGE_URL = "https://image.tmdb.org/t/p";
+const TMDB_CACHE_SECONDS = 6 * 60 * 60;
 
 const MOVIE_GENRES: Record<number, string> = {
     12: "Adventure",
@@ -168,16 +169,16 @@ class TmdbRequestError extends Error {
     }
 }
 
-function image(path?: string | null): string[] {
-    return path ? [`${TMDB_IMAGE_URL}${path}`] : [];
+function image(path?: string | null, size = "original"): string[] {
+    return path ? [`${TMDB_IMAGE_URL}/${size}${path}`] : [];
 }
 
 function mediaImages(item: TmdbMedia): TraktImages {
     return {
-        poster: image(item.poster_path),
-        fanart: image(item.backdrop_path),
-        banner: image(item.backdrop_path),
-        thumb: image(item.backdrop_path),
+        poster: image(item.poster_path, "w500"),
+        fanart: image(item.backdrop_path, "w1280"),
+        banner: image(item.backdrop_path, "w1280"),
+        thumb: image(item.backdrop_path, "w500"),
         logo: [],
         clearart: [],
         headshot: [],
@@ -239,7 +240,7 @@ function normalizePerson(person: TmdbPerson): TraktPerson {
             tmdb: person.id,
             imdb: person.imdb_id || person.external_ids?.imdb_id,
         },
-        images: { headshot: image(person.profile_path), fanart: [] },
+        images: { headshot: image(person.profile_path, "w342"), fanart: [] },
     };
 }
 
@@ -290,7 +291,7 @@ async function tmdb<T>(endpoint: string, credential: TmdbCredential, params: Rec
     if (credential.apiKey) url.searchParams.set("api_key", credential.apiKey);
 
     const response = await fetch(url, {
-        cache: "no-store",
+        next: { revalidate: TMDB_CACHE_SECONDS },
         headers: {
             accept: "application/json",
             ...(credential.token ? { Authorization: `Bearer ${credential.token}` } : {}),
@@ -499,7 +500,10 @@ async function handleShows(path: string[], request: NextRequest, credential: Tmd
                 number: episode.episode_number,
                 title: episode.name,
                 ids: { trakt: episode.id, slug: String(episode.id), tmdb: episode.id },
-                images: { ...mediaImages({ id: episode.id, backdrop_path: episode.still_path }), screenshot: image(episode.still_path) },
+                images: {
+                    ...mediaImages({ id: episode.id, backdrop_path: episode.still_path }),
+                    screenshot: image(episode.still_path, "w500"),
+                },
                 overview: episode.overview,
                 first_aired: episode.air_date || undefined,
                 runtime: episode.runtime || undefined,

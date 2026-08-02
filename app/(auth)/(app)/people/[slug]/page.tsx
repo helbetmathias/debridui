@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTraktPerson, useTraktPersonMovies, useTraktPersonShows } from "@/hooks/use-trakt";
 import type { TraktMedia, TraktPersonFull, TraktPersonMovieCredit, TraktPersonShowCredit } from "@/lib/trakt";
 import { calculateAge, formatLocalizedDate } from "@/lib/utils";
-import { getPosterUrl } from "@/lib/utils/media";
+import { getPosterUrl, resolveImageUrl } from "@/lib/utils/media";
 
 // Person Header Component
 const PersonHeader = memo(function PersonHeader({
@@ -71,9 +71,9 @@ const PersonHeader = memo(function PersonHeader({
 
     if (!person) return null;
 
-    const headshotUrl = person.images?.headshot?.[0] ? `https://${person.images.headshot[0]}` : null;
+    const headshotUrl = person.images?.headshot?.[0] ? resolveImageUrl(person.images.headshot[0]) : null;
 
-    const fanartUrl = person.images?.fanart?.[0] ? `https://${person.images.fanart[0]}` : null;
+    const fanartUrl = person.images?.fanart?.[0] ? resolveImageUrl(person.images.fanart[0]) : null;
 
     const age = calculateAge(person.birthday, person.death);
     const biographyLines = person.biography?.split("\n").filter(Boolean) || [];

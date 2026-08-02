@@ -6,6 +6,7 @@ import { memo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTraktPeople } from "@/hooks/use-trakt";
 import type { TraktCastMember, TraktCrewMember } from "@/lib/trakt";
+import { resolveImageUrl } from "@/lib/utils/media";
 
 interface PeopleSectionProps {
     mediaId: string;
@@ -65,7 +66,9 @@ interface PersonCardProps {
 }
 
 function PersonCard({ person, type }: PersonCardProps) {
-    const imageUrl = person.person.images?.headshot?.[0] ? `https://${person.person.images.headshot[0]}` : null;
+    const imageUrl = person.person.images?.headshot?.[0]
+        ? resolveImageUrl(person.person.images.headshot[0])
+        : null;
     const slug = person.person.ids?.slug || person.person.ids?.imdb;
 
     const role =

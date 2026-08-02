@@ -6,6 +6,7 @@ import { WatchButton } from "@/components/common/watch-button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { TraktEpisode, TraktMedia } from "@/lib/trakt";
 import { cn, formatLocalizedDate } from "@/lib/utils";
+import { resolveImageUrl } from "@/lib/utils/media";
 import { Sources } from "./sources";
 
 interface ThumbnailContentProps {
@@ -66,7 +67,7 @@ export const EpisodeCard = memo(function EpisodeCard({ episode, className, imdbI
 
     const episodeLabel = String(episode.number).padStart(2, "0");
     const screenshotUrl = episode.images?.screenshot?.[0]
-        ? `https://${episode.images.screenshot[0]}`
+        ? resolveImageUrl(episode.images.screenshot[0])
         : `https://placehold.co/400x225/1a1a1a/3e3e3e?text=${episodeLabel}`;
 
     // Specials eps have season number 0, so those episodes wont work
