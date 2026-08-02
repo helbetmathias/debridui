@@ -18,7 +18,7 @@ export const MovieDetails = memo(function MovieDetails({ media, mediaId }: Movie
             {media ? <MediaHeader media={media} mediaId={mediaId} type="movie" /> : <MediaHeaderSkeleton />}
 
             {media?.ids?.imdb && (
-                <section className="space-y-6">
+                <section className="relative z-10 space-y-6">
                     <SectionDivider label="Available Sources" />
                     <div id="sources" className="-mx-4 sm:mx-0">
                         <Sources
@@ -29,7 +29,7 @@ export const MovieDetails = memo(function MovieDetails({ media, mediaId }: Movie
                 </section>
             )}
 
-            <section className="space-y-6">
+            <section className="relative z-10 space-y-6">
                 <SectionDivider label="Cast & Crew" />
                 <PeopleSection mediaId={mediaId} type="movies" />
             </section>
