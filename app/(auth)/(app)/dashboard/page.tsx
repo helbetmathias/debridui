@@ -1,25 +1,14 @@
 "use client";
 
-import { Calendar, Film, Puzzle, SearchIcon, Sparkles, Ticket, TrendingUp, Tv } from "lucide-react";
+import { Film, Puzzle, SearchIcon, Tv } from "lucide-react";
 import dynamic from "next/dynamic";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ContinueWatching } from "@/components/mdb/continue-watching";
 import { HeroCarouselSkeleton } from "@/components/mdb/hero-carousel-skeleton";
 import { MdbFooter } from "@/components/mdb/mdb-footer";
 import { MediaSection } from "@/components/mdb/media-section";
 import { SearchDialog } from "@/components/mdb/search-dialog";
 import { type AddonCatalogDef, catalogSlug, useAddonCatalog, useAddonCatalogDefs } from "@/hooks/use-addons";
-import {
-    useTraktAnticipatedMovies,
-    useTraktAnticipatedShows,
-    useTraktBoxOfficeMovies,
-    useTraktMostWatchedMovies,
-    useTraktMostWatchedShows,
-    useTraktPopularMovies,
-    useTraktPopularShows,
-    useTraktTrendingMovies,
-    useTraktTrendingShows,
-} from "@/hooks/use-trakt";
 import { DISCORD_URL } from "@/lib/constants";
 
 const HeroCarousel = dynamic(
@@ -181,6 +170,10 @@ const AddonCatalogRow = memo(function AddonCatalogRow({
 // Single shared IntersectionObserver for all catalog rows
 const AddonCatalogs = memo(function AddonCatalogs() {
     const { catalogs, isLoading } = useAddonCatalogDefs();
+    const cinemetaCatalogs = useMemo(
+        () => catalogs.filter((catalog) => catalog.addonName.trim().toLowerCase() === "cinemeta"),
+        [catalogs]
+    );
     const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
     const observerRef = useRef<IntersectionObserver>(undefined);
     const pendingRef = useRef<Element[]>([]);
@@ -222,12 +215,12 @@ const AddonCatalogs = memo(function AddonCatalogs() {
         }
     }, []);
 
-    if (isLoading || catalogs.length === 0) return null;
+    if (isLoading || cinemetaCatalogs.length === 0) return null;
 
     return (
-        <ContentSection label="From Your Addons" icon={Puzzle}>
+        <ContentSection label="Cinemeta" icon={Puzzle}>
             <div className="space-y-1 md:space-y-3">
-                {catalogs.map((catalog) => {
+                {cinemetaCatalogs.map((catalog) => {
                     const key = `${catalog.addonId}-${catalog.type}-${catalog.id}`;
                     return (
                         <div key={key} ref={observeRef} data-catalog-key={key}>
@@ -243,16 +236,6 @@ const AddonCatalogs = memo(function AddonCatalogs() {
 const DashboardPage = memo(function DashboardPage() {
     const [searchOpen, setSearchOpen] = useState(false);
     const openSearch = useCallback(() => setSearchOpen(true), []);
-
-    const trendingMovies = useTraktTrendingMovies(20);
-    const trendingShows = useTraktTrendingShows(20);
-    const popularMovies = useTraktPopularMovies(20);
-    const popularShows = useTraktPopularShows(20);
-    const mostWatchedMovies = useTraktMostWatchedMovies("weekly", 20);
-    const mostWatchedShows = useTraktMostWatchedShows("weekly", 20);
-    const anticipatedMovies = useTraktAnticipatedMovies(20);
-    const anticipatedShows = useTraktAnticipatedShows(20);
-    const boxOffice = useTraktBoxOfficeMovies();
 
     return (
         <div className="pb-12">
@@ -271,82 +254,6 @@ const DashboardPage = memo(function DashboardPage() {
             <div className="lg:px-6 space-y-16">
                 {/* Addon Catalogs */}
                 <AddonCatalogs />
-
-                {/* Trending */}
-                <ContentSection label="Trending Now" icon={TrendingUp} delay={0}>
-                    <MediaSection
-                        title="Movies"
-                        items={trendingMovies.data}
-                        isLoading={trendingMovies.isLoading}
-                        error={trendingMovies.error}
-                        showRank
-                    />
-                    <MediaSection
-                        title="TV Shows"
-                        items={trendingShows.data}
-                        isLoading={trendingShows.isLoading}
-                        error={trendingShows.error}
-                        showRank
-                    />
-                </ContentSection>
-
-                {/* Popular */}
-                <ContentSection label="Popular" icon={Sparkles} delay={100}>
-                    <MediaSection
-                        title="Movies"
-                        items={popularMovies.data}
-                        isLoading={popularMovies.isLoading}
-                        error={popularMovies.error}
-                    />
-                    <MediaSection
-                        title="TV Shows"
-                        items={popularShows.data}
-                        isLoading={popularShows.isLoading}
-                        error={popularShows.error}
-                    />
-                </ContentSection>
-
-                {/* Now Playing */}
-                <ContentSection label="Now Playing" icon={Ticket} delay={200}>
-                    <MediaSection
-                        title="In Theaters"
-                        items={boxOffice.data}
-                        isLoading={boxOffice.isLoading}
-                        error={boxOffice.error}
-                    />
-                </ContentSection>
-
-                {/* Top Rated */}
-                <ContentSection label="Top Rated" icon={Film} delay={300}>
-                    <MediaSection
-                        title="Movies"
-                        items={mostWatchedMovies.data}
-                        isLoading={mostWatchedMovies.isLoading}
-                        error={mostWatchedMovies.error}
-                    />
-                    <MediaSection
-                        title="TV Shows"
-                        items={mostWatchedShows.data}
-                        isLoading={mostWatchedShows.isLoading}
-                        error={mostWatchedShows.error}
-                    />
-                </ContentSection>
-
-                {/* Coming Soon */}
-                <ContentSection label="Coming Soon" icon={Calendar} delay={400}>
-                    <MediaSection
-                        title="Movies"
-                        items={anticipatedMovies.data}
-                        isLoading={anticipatedMovies.isLoading}
-                        error={anticipatedMovies.error}
-                    />
-                    <MediaSection
-                        title="TV Shows"
-                        items={anticipatedShows.data}
-                        isLoading={anticipatedShows.isLoading}
-                        error={anticipatedShows.error}
-                    />
-                </ContentSection>
 
                 {/* Footer */}
                 <MdbFooter className="pt-10 border-t border-border/50" />
