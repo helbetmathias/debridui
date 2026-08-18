@@ -10,6 +10,7 @@ import { PAGE_SIZE } from "@/lib/constants";
 import { useSelectionStore } from "@/lib/stores/selection";
 import type { DebridFile } from "@/lib/types";
 import { AddContent } from "./add-content";
+import { CacheCheck } from "./cache-check";
 import { FileActionsDrawer } from "./file-actions-drawer";
 import { FileList, FileListBody, FileListEmpty, FileListLoading } from "./file-list";
 import { FileListHeader } from "./file-list-header";
@@ -94,7 +95,16 @@ export const FileExplorer = memo(function FileExplorer() {
     return (
         <div className="md:mx-auto md:w-full md:max-w-4xl pb-24">
             <div className="flex flex-col gap-4">
-                <PageHeader icon={FolderOpen} title="File Explorer" primaryAction={<QuickSettings />} />
+                <PageHeader
+                    icon={FolderOpen}
+                    title="File Explorer"
+                    primaryAction={
+                        <>
+                            <CacheCheck />
+                            <QuickSettings />
+                        </>
+                    }
+                />
                 <AddContent />
 
                 <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-4">

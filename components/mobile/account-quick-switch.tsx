@@ -49,7 +49,7 @@ export function AccountQuickSwitch() {
             </button>
 
             <Drawer open={open} onOpenChange={setOpen}>
-                <DrawerContent className="rounded-t-sm border-border/60 max-h-[85vh] data-[vaul-drawer-direction=bottom]:rounded-t-sm">
+                <DrawerContent>
                     <DrawerHeader className="px-5 pt-2 pb-3 text-left! md:text-left">
                         <DrawerTitle className="text-xs tracking-widest uppercase text-muted-foreground font-light text-left">
                             Account

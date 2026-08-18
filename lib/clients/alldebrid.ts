@@ -2,6 +2,7 @@ import Fuse from "fuse.js";
 import {
     type Account,
     AccountType,
+    type CacheCheckResult,
     DebridAuthError,
     DebridError,
     type DebridFile,
@@ -17,6 +18,7 @@ import {
     type WebDownloadAddResult,
     type WebDownloadList,
 } from "@/lib/types";
+import { bareMagnet } from "@/lib/utils/infohash";
 import { USER_AGENT } from "../constants";
 import BaseClient from "./base";
 
@@ -330,6 +332,55 @@ export default class AllDebridClient extends BaseClient {
                 return results;
             },
             {} as Record<string, OperationResult>
+        );
+    }
+
+    /**
+     * `magnet/upload` reports `ready`, name and size for every magnet in one request, so the base
+     * probe's per-hash status poll is unnecessary here — one upload answers the whole batch.
+     * The magnets are still removed afterwards: checking must not leave anything on the account.
+     */
+    async checkCache(hashes: string[]): Promise<CacheCheckResult[]> {
+        const found = new Map<string, CacheCheckResult>();
+        const added: number[] = [];
+
+        for (let i = 0; i < hashes.length; i += 50) {
+            const formData = new FormData();
+            for (const hash of hashes.slice(i, i + 50)) formData.append("magnets[]", bareMagnet(hash));
+
+            const response: AddTorrentResponse = await this.makeRequest(`/magnet/upload`, {
+                method: "POST",
+                body: formData,
+            });
+
+            for (const magnet of response.magnets) {
+                if (!magnet.hash) continue;
+                // An upload error says nothing about cache state, so it stays unanswered
+                if (magnet.error?.message) {
+                    found.set(magnet.hash.toLowerCase(), {
+                        hash: magnet.hash.toLowerCase(),
+                        cached: false,
+                        filename: "",
+                        filesize: "0",
+                        unknown: true,
+                    });
+                    continue;
+                }
+
+                added.push(magnet.id);
+                found.set(magnet.hash.toLowerCase(), {
+                    hash: magnet.hash.toLowerCase(),
+                    cached: magnet.ready,
+                    filename: magnet.name ?? "",
+                    filesize: String(magnet.size ?? 0),
+                });
+            }
+        }
+
+        await Promise.allSettled(added.map((id) => this.removeTorrent(String(id))));
+
+        return hashes.map(
+            (hash) => found.get(hash) ?? { hash, cached: false, filename: "", filesize: "0", unknown: true }
         );
     }
 

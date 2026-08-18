@@ -1,6 +1,7 @@
 import {
     type Account,
     AccountType,
+    type CacheCheckResult,
     DebridAuthError,
     DebridError,
     type DebridFile,
@@ -44,6 +45,12 @@ interface TorBoxSearchResponse {
         metadata: null;
         torrents: TorBoxSearchResult[];
     };
+}
+
+interface TorBoxCachedTorrent {
+    name: string;
+    size: number;
+    hash: string;
 }
 
 interface TorBoxUser {
@@ -131,6 +138,8 @@ interface TorBoxWebDownload {
 
 export default class TorBoxClient extends BaseClient {
     private readonly apiBaseUrl = "https://api.torbox.app/v1/api";
+
+    readonly cacheCheckMode = "native" as const;
 
     // TorBox downloads on server, needs refresh for progress
     readonly refreshInterval = 5000;
@@ -500,6 +509,38 @@ export default class TorBoxClient extends BaseClient {
             },
             {} as Record<string, DebridFileAddStatus>
         );
+    }
+
+    /**
+     * https://api.torbox.app/v1/api/torrents/checkcached — sent as a POST body, so the hash list
+     * is not bound by URL length. Still batched: the endpoint documents a ~100 cap per call.
+     */
+    async checkCache(hashes: string[]): Promise<CacheCheckResult[]> {
+        const found: Record<string, TorBoxCachedTorrent> = {};
+
+        for (let i = 0; i < hashes.length; i += 100) {
+            const response = await this.makeRequest<Record<string, TorBoxCachedTorrent> | TorBoxCachedTorrent[] | null>(
+                "/torrents/checkcached?format=object",
+                {
+                    method: "POST",
+                    body: JSON.stringify({ hashes: hashes.slice(i, i + 100) }),
+                    headers: { "Content-Type": "application/json" },
+                }
+            );
+
+            // `format=object` is a request, not a guarantee; an array would land as numeric keys
+            const entries = Array.isArray(response) ? response : Object.values(response ?? {});
+            for (const entry of entries) {
+                if (entry?.hash) found[entry.hash.toLowerCase()] = entry;
+            }
+        }
+
+        return hashes.map((hash) => ({
+            hash,
+            cached: hash in found,
+            filename: found[hash]?.name ?? "",
+            filesize: String(found[hash]?.size ?? 0),
+        }));
     }
 
     async searchTorrents(query: string): Promise<TorBoxSearchResult[]> {

@@ -2,6 +2,7 @@ import type { WebDownloadAddResult } from "@/lib/types";
 import {
     type Account,
     AccountType,
+    type CacheCheckResult,
     DebridAuthError,
     DebridError,
     type DebridFile,
@@ -149,6 +150,8 @@ function firstSeenAt(transferId: string): Date {
 }
 
 export default class PremiumizeClient extends BaseClient {
+    readonly cacheCheckMode = "native" as const;
+
     readonly refreshInterval: number | false = false;
     readonly supportsEphemeralLinks: boolean = false;
 
@@ -589,17 +592,33 @@ export default class PremiumizeClient extends BaseClient {
         );
     }
 
-    async checkCache(items: string[]): Promise<{ cached: boolean; filename: string; filesize: string }[]> {
-        const params = new URLSearchParams();
-        for (const item of items) params.append("items[]", item);
+    /**
+     * https://www.premiumize.me/api — `items[]` takes bare infohashes, never tracker-bearing magnets.
+     *
+     * Batched because getProxyUrl re-encodes the whole URL, costing ~61 bytes per 40-char hash;
+     * 75 keeps the request line near 4.7KB, well inside the usual 8KB proxy limit.
+     */
+    async checkCache(hashes: string[]): Promise<CacheCheckResult[]> {
+        const found = new Map<string, CacheCheckResult>();
 
-        const response = await this.makeRequest<PremiumizeCacheCheckResponse>(`/cache/check?${params.toString()}`);
+        for (let i = 0; i < hashes.length; i += 75) {
+            const batch = hashes.slice(i, i + 75);
+            const params = new URLSearchParams();
+            for (const hash of batch) params.append("items[]", hash);
 
-        return items.map((_, index) => ({
-            cached: response.response?.[index] || false,
-            filename: response.filename?.[index] || "",
-            filesize: response.filesize?.[index] || "0",
-        }));
+            const response = await this.makeRequest<PremiumizeCacheCheckResponse>(`/cache/check?${params}`);
+
+            batch.forEach((hash, index) => {
+                found.set(hash, {
+                    hash,
+                    cached: response.response?.[index] || false,
+                    filename: response.filename?.[index] || "",
+                    filesize: response.filesize?.[index] || "0",
+                });
+            });
+        }
+
+        return hashes.map((hash) => found.get(hash) ?? { hash, cached: false, filename: "", filesize: "0" });
     }
 
     async clearFinishedTransfers(): Promise<void> {

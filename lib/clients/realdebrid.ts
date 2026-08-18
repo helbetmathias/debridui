@@ -318,6 +318,29 @@ export default class RealDebridClient extends BaseClient {
         );
     }
 
+    /** Adds without selecting files, leaving a torrent the user owns unaltered. */
+    protected async probeAdd(magnet: string): Promise<DebridFileAddStatus | undefined> {
+        try {
+            const result = await this.makeRequest<RDAddTorrentResponse>("/torrents/addMagnet", {
+                method: "POST",
+                body: new URLSearchParams({ magnet }).toString(),
+                headers: RealDebridClient.FORM_HEADERS,
+            });
+            return { success: true, id: result.id, message: "Added for probing", is_cached: false };
+        } catch (error) {
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to add torrent",
+                is_cached: false,
+            };
+        }
+    }
+
+    /** Real-Debrid only reports `downloaded` once files are selected. */
+    protected async probeCommit(id: string): Promise<void> {
+        await this.selectAllFiles(id);
+    }
+
     async addMagnetLinks(magnetUris: string[]): Promise<Record<string, DebridFileAddStatus>> {
         const results: Record<string, DebridFileAddStatus> = {};
 

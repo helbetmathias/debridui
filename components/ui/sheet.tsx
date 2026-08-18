@@ -49,7 +49,7 @@ function SheetContent({
             <SheetPrimitive.Content
                 data-slot="sheet-content"
                 className={cn(
-                    "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg will-change-transform data-[state=closed]:duration-300 data-[state=open]:duration-300 border-border/50",
+                    "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col shadow-lg will-change-transform data-[state=closed]:duration-300 data-[state=open]:duration-300 border-border/50",
                     side === "right" &&
                         "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
                     side === "left" &&
@@ -72,7 +72,9 @@ function SheetContent({
 }
 
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
-    return <div data-slot="sheet-header" className={cn("flex flex-col gap-1.5 p-4", className)} {...props} />;
+    return (
+        <div data-slot="sheet-header" className={cn("flex flex-col gap-0.5 p-4 pr-12 pb-3", className)} {...props} />
+    );
 }
 
 function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
@@ -83,7 +85,7 @@ function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetPr
     return (
         <SheetPrimitive.Title
             data-slot="sheet-title"
-            className={cn("text-foreground font-light text-lg", className)}
+            className={cn("text-base font-light text-foreground", className)}
             {...props}
         />
     );
@@ -93,7 +95,7 @@ function SheetDescription({ className, ...props }: React.ComponentProps<typeof S
     return (
         <SheetPrimitive.Description
             data-slot="sheet-description"
-            className={cn("text-muted-foreground text-sm", className)}
+            className={cn("text-xs text-muted-foreground", className)}
             {...props}
         />
     );

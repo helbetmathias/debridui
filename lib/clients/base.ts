@@ -1,5 +1,7 @@
 import type {
     Account,
+    CacheCheckMode,
+    CacheCheckResult,
     DebridFile,
     DebridFileAddStatus,
     DebridFileList,
@@ -10,6 +12,7 @@ import type {
     WebDownloadAddResult,
     WebDownloadList,
 } from "@/lib/types";
+import { bareMagnet } from "@/lib/utils/infohash";
 
 /**
  * Sliding-window rate limiter. Serializes calls through a promise chain
@@ -59,6 +62,9 @@ export default abstract class BaseClient {
     // Web download capabilities - override in subclasses
     readonly refreshInterval: number | false = false;
     readonly supportsEphemeralLinks: boolean = false;
+
+    /** Overridden to "native" by clients with a by-hash cache endpoint. */
+    readonly cacheCheckMode: CacheCheckMode = "probe";
 
     constructor({ account, rateLimiter = { maxRequests: 250, intervalMs: 60000 } }: BaseClientOptions) {
         this.account = account;
@@ -137,6 +143,78 @@ export default abstract class BaseClient {
         }
 
         return results;
+    }
+
+    /**
+     * Cache check for services with no by-hash endpoint (Real-Debrid disabled theirs, AllDebrid
+     * never had one): add the magnet, read whether it landed complete, remove it again. Only
+     * `bareMagnet` output is sent, leaving the service no tracker to announce to.
+     */
+    async checkCache(hashes: string[]): Promise<CacheCheckResult[]> {
+        const results: CacheCheckResult[] = [];
+        for (const hash of hashes) {
+            // One bad hash must not discard answers already paid for with add/remove cycles
+            try {
+                results.push(await this.probeCache(hash));
+            } catch (error) {
+                console.error(`Cache probe failed for ${hash}`, error);
+                results.push({ hash, cached: false, filename: "", filesize: "0", unknown: true });
+            }
+        }
+        return results;
+    }
+
+    private async probeCache(hash: string): Promise<CacheCheckResult> {
+        const status = await this.probeAdd(bareMagnet(hash));
+        if (!status?.success || status.id === undefined) {
+            return { hash, cached: false, filename: "", filesize: "0", unknown: true };
+        }
+
+        const id = String(status.id);
+
+        try {
+            await this.probeCommit(id);
+
+            // Services report `waiting` while converting the magnet; a cached one settles shortly after
+            let torrent = await this.findTorrentById(id);
+            for (let attempt = 0; attempt < 4 && (!torrent || torrent.status === "waiting"); attempt++) {
+                await new Promise((r) => setTimeout(r, 1500));
+                torrent = await this.findTorrentById(id);
+            }
+
+            const cached = status.is_cached || torrent?.status === "completed";
+            return {
+                hash,
+                cached,
+                filename: torrent?.name ?? "",
+                filesize: String(torrent?.size ?? 0),
+                // Never settled tells us nothing; "not cached" would send trackers for a torrent it may hold
+                unknown: !cached && (!torrent || torrent.status === "waiting"),
+            };
+        } finally {
+            await this.removeProbe(id);
+        }
+    }
+
+    /** Adds a magnet for probing, without committing it to a download where that is separable. */
+    protected async probeAdd(magnet: string): Promise<DebridFileAddStatus | undefined> {
+        // Keyed by the service's echo of the magnet, which may differ from ours
+        return Object.values(await this.addMagnetLinks([magnet]))[0];
+    }
+
+    /** Some services only reveal cache state once the torrent is committed to downloading. */
+    protected async probeCommit(_id: string): Promise<void> {}
+
+    /** A stranded probe torrent keeps downloading, so a failed removal is reported, not swallowed. */
+    private async removeProbe(id: string) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                return await this.removeTorrent(id);
+            } catch {
+                await new Promise((r) => setTimeout(r, 1000));
+            }
+        }
+        throw new Error(`Probe torrent ${id} could not be removed — check your torrent list`);
     }
 
     abstract addMagnetLinks(magnetUris: string[]): Promise<Record<string, DebridFileAddStatus>>;
