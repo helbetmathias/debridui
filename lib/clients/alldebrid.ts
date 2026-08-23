@@ -2,6 +2,7 @@ import Fuse from "fuse.js";
 import {
     type Account,
     AccountType,
+    type CacheCheckResult,
     DebridAuthError,
     DebridError,
     type DebridFile,
@@ -11,15 +12,16 @@ import {
     type DebridFileStatus,
     type DebridLinkInfo,
     type DebridNode,
+    DebridRateLimitError,
     type FullAccount,
     type OperationResult,
     type WebDownloadAddResult,
     type WebDownloadList,
 } from "@/lib/types";
+import { bareMagnet } from "@/lib/utils/infohash";
 import { USER_AGENT } from "../constants";
 import BaseClient from "./base";
 
-// Response type definitions
 interface FileNode {
     n: string;
     s: number;
@@ -116,7 +118,18 @@ export default class AllDebridClient extends BaseClient {
         });
 
         if (!response.ok) {
-            throw new Error(`API request failed for ${path}: ${response.statusText}`);
+            if (response.status === 401) {
+                throw new DebridAuthError("Invalid or expired API key", AccountType.ALLDEBRID);
+            }
+            if (response.status === 429) {
+                const retryAfter = response.headers.get("Retry-After");
+                throw new DebridRateLimitError(
+                    "Rate limit exceeded",
+                    AccountType.ALLDEBRID,
+                    retryAfter ? parseInt(retryAfter, 10) : undefined
+                );
+            }
+            throw new DebridError(`API request failed for ${path}: ${response.statusText}`, AccountType.ALLDEBRID);
         }
 
         const data = await response.json();
@@ -322,6 +335,55 @@ export default class AllDebridClient extends BaseClient {
         );
     }
 
+    /**
+     * `magnet/upload` reports `ready`, name and size for every magnet in one request, so the base
+     * probe's per-hash status poll is unnecessary here — one upload answers the whole batch.
+     * The magnets are still removed afterwards: checking must not leave anything on the account.
+     */
+    async checkCache(hashes: string[]): Promise<CacheCheckResult[]> {
+        const found = new Map<string, CacheCheckResult>();
+        const added: number[] = [];
+
+        for (let i = 0; i < hashes.length; i += 50) {
+            const formData = new FormData();
+            for (const hash of hashes.slice(i, i + 50)) formData.append("magnets[]", bareMagnet(hash));
+
+            const response: AddTorrentResponse = await this.makeRequest(`/magnet/upload`, {
+                method: "POST",
+                body: formData,
+            });
+
+            for (const magnet of response.magnets) {
+                if (!magnet.hash) continue;
+                // An upload error says nothing about cache state, so it stays unanswered
+                if (magnet.error?.message) {
+                    found.set(magnet.hash.toLowerCase(), {
+                        hash: magnet.hash.toLowerCase(),
+                        cached: false,
+                        filename: "",
+                        filesize: "0",
+                        unknown: true,
+                    });
+                    continue;
+                }
+
+                added.push(magnet.id);
+                found.set(magnet.hash.toLowerCase(), {
+                    hash: magnet.hash.toLowerCase(),
+                    cached: magnet.ready,
+                    filename: magnet.name ?? "",
+                    filesize: String(magnet.size ?? 0),
+                });
+            }
+        }
+
+        await Promise.allSettled(added.map((id) => this.removeTorrent(String(id))));
+
+        return hashes.map(
+            (hash) => found.get(hash) ?? { hash, cached: false, filename: "", filesize: "0", unknown: true }
+        );
+    }
+
     async addMagnetLinks(magnetUris: string[]): Promise<Record<string, DebridFileAddStatus>> {
         const formData = new FormData();
         for (const magnet of magnetUris) formData.append("magnets[]", magnet);
@@ -371,7 +433,6 @@ export default class AllDebridClient extends BaseClient {
         );
     }
 
-    // Web download methods - AllDebrid uses instant link unlock
     async addWebDownloads(links: string[]): Promise<WebDownloadAddResult[]> {
         const results = await Promise.allSettled(
             links.map(async (link) => {
@@ -529,20 +590,17 @@ export default class AllDebridClient extends BaseClient {
                 if (torrent.deleted) {
                     this.removeTorrentFromCache(torrent.id);
                 } else {
-                    // Merge with existing data
                     this.torrentsCache.set(torrent.id, {
                         ...existingTorrent,
                         ...torrent,
                     });
                 }
             } else if (!torrent.deleted) {
-                // New torrent
                 this.torrentsCache.set(torrent.id, torrent);
                 newTorrentIds.push(torrent.id);
             }
         }
 
-        // Add new torrents to the beginning of the order array
         if (newTorrentIds.length > 0) {
             this.torrentOrder = [...newTorrentIds, ...this.torrentOrder];
         }
@@ -560,7 +618,6 @@ export default class AllDebridClient extends BaseClient {
 
     private convertSingleNode = (node: FileNode | FolderNode): DebridNode => {
         if ("e" in node) {
-            // Folder node
             return {
                 name: node.n,
                 size: undefined,
@@ -569,7 +626,6 @@ export default class AllDebridClient extends BaseClient {
             };
         }
 
-        // File node
         return {
             id: node.l,
             name: node.n,

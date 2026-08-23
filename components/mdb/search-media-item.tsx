@@ -4,8 +4,8 @@ import { ArrowUpRight, Film, Star, Tv } from "lucide-react";
 import { memo } from "react";
 import { SearchItemWrapper } from "@/components/search-item-wrapper";
 import type { MediaSearchResult } from "@/lib/media";
+import { getPosterUrl } from "@/lib/media/images";
 import { cn } from "@/lib/utils";
-import { getPosterUrl } from "@/lib/utils/media";
 
 interface SearchMediaItemProps {
     result: MediaSearchResult;

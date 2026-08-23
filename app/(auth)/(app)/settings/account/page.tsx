@@ -27,8 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setPassword } from "@/lib/actions/user";
 import { authClient } from "@/lib/auth-client";
+import { parseUserAgent } from "@/lib/media/player";
 import { clearAppCache } from "@/lib/utils";
-import { parseUserAgent } from "@/lib/utils/media-player";
 
 const AUTH_ACCOUNTS_KEY = ["auth-accounts"];
 const USER_SESSIONS_KEY = ["user-sessions"];
@@ -372,7 +372,11 @@ function PasswordSection() {
 function SessionsSection({ currentToken }: { currentToken?: string }) {
     const queryClient = useQueryClient();
 
-    const { data: sessions = [], isLoading } = useQuery({
+    const {
+        data: sessions = [],
+        isLoading,
+        error: sessionsError,
+    } = useQuery({
         queryKey: USER_SESSIONS_KEY,
         queryFn: async () => {
             const response = await authClient.listSessions();
@@ -430,6 +434,8 @@ function SessionsSection({ currentToken }: { currentToken?: string }) {
                             </div>
                         </div>
                     ))
+                ) : sessionsError ? (
+                    <p className="text-sm text-destructive py-4">Could not load sessions: {sessionsError.message}</p>
                 ) : sessions.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4">No active sessions found</p>
                 ) : (

@@ -6,7 +6,7 @@ import { memo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMediaPeople } from "@/hooks/use-media";
 import type { CastMember, CrewMember } from "@/lib/media";
-import { resolveImageUrl } from "@/lib/utils/media";
+import { resolveImageUrl } from "@/lib/media/images";
 
 interface PeopleSectionProps {
     mediaId: string;

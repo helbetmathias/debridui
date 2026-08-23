@@ -89,6 +89,9 @@ export type DebridFile = {
 
     error?: string;
     files?: DebridNode[];
+
+    // TorBox Airlock: item is exempt from inactivity cleanup
+    airlocked?: boolean;
 };
 
 export type DebridFileList = {
@@ -126,6 +129,23 @@ export type DebridFileAddStatus = OperationResult & {
     id?: number | string;
     is_cached: boolean;
 };
+
+/** Pre-add cache lookup, aligned positionally to the requested infohashes. */
+export type CacheCheckResult = {
+    hash: string;
+    cached: boolean;
+    filename: string;
+    filesize: string;
+    /** No usable answer. Never equivalent to "not cached". */
+    unknown?: boolean;
+};
+
+/**
+ * How a client answers a cache check.
+ * - `native`: a dedicated by-hash endpoint, nothing is ever added to the account.
+ * - `probe`: no such endpoint, so a tracker-less magnet is added, its status read, then removed.
+ */
+export type CacheCheckMode = "native" | "probe";
 
 export class DebridError extends Error {
     type?: AccountType;
@@ -166,6 +186,7 @@ export type WebDownload = {
     createdAt: Date;
     host?: string;
     error?: string;
+    airlocked?: boolean;
 };
 
 export type WebDownloadStatus = "pending" | "processing" | "completed" | "failed" | "cached";

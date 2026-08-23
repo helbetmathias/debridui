@@ -11,8 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMediaPerson, useMediaPersonMovies, useMediaPersonShows } from "@/hooks/use-media";
 import type { MediaDetails, PersonDetails, PersonMovieCredit, PersonShowCredit } from "@/lib/media";
+import { getPosterUrl, resolveImageUrl } from "@/lib/media/images";
 import { calculateAge, formatLocalizedDate } from "@/lib/utils";
-import { getPosterUrl, resolveImageUrl } from "@/lib/utils/media";
 
 // Person Header Component
 const PersonHeader = memo(function PersonHeader({ person, isLoading }: { person?: PersonDetails; isLoading: boolean }) {

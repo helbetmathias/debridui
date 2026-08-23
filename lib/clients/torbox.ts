@@ -1,6 +1,7 @@
 import {
     type Account,
     AccountType,
+    type CacheCheckResult,
     DebridAuthError,
     DebridError,
     type DebridFile,
@@ -21,8 +22,8 @@ import {
 import { getProxyUrl } from "@/lib/utils";
 import { USER_AGENT } from "../constants";
 import BaseClient from "./base";
+import { buildTree } from "./tree";
 
-// TorBox Search API types
 export interface TorBoxSearchResult {
     hash: string;
     raw_title: string;
@@ -46,7 +47,12 @@ interface TorBoxSearchResponse {
     };
 }
 
-// TorBox API Response types
+interface TorBoxCachedTorrent {
+    name: string;
+    size: number;
+    hash: string;
+}
+
 interface TorBoxUser {
     id: number;
     created_at: string;
@@ -88,6 +94,8 @@ interface TorBoxTorrent {
     auth_id: string;
     files?: TorBoxFile[];
     cached_at?: string;
+    airlocked?: boolean;
+    tracker_message?: string;
 }
 
 interface TorBoxFile {
@@ -125,10 +133,13 @@ interface TorBoxWebDownload {
     original_url: string;
     auth_id: string;
     error?: string;
+    airlocked?: boolean;
 }
 
 export default class TorBoxClient extends BaseClient {
     private readonly apiBaseUrl = "https://api.torbox.app/v1/api";
+
+    readonly cacheCheckMode = "native" as const;
 
     // TorBox downloads on server, needs refresh for progress
     readonly refreshInterval = 5000;
@@ -138,9 +149,6 @@ export default class TorBoxClient extends BaseClient {
         super({ account });
     }
 
-    /**
-     * Build a download URL for torrents or web downloads
-     */
     private buildDownloadUrl(
         type: "torrent" | "webdl",
         id: string | number,
@@ -208,8 +216,7 @@ export default class TorBoxClient extends BaseClient {
         check: string;
         redirect_url: string;
     }> {
-        // TorBox doesn't use PIN authentication like AllDebrid
-        // For now, we'll return a placeholder that indicates to use API key directly
+        // TorBox has no PIN flow; the key is entered directly
         return {
             pin: "TORBOX_API_KEY",
             check: "direct_api_key",
@@ -218,7 +225,6 @@ export default class TorBoxClient extends BaseClient {
     }
 
     static async validateAuthPin(pin: string, check: string): Promise<{ success: boolean; apiKey?: string }> {
-        // Since TorBox uses direct API key authentication, we treat the "pin" as the API key
         if (check === "direct_api_key") {
             try {
                 await TorBoxClient.getUser(pin);
@@ -236,14 +242,13 @@ export default class TorBoxClient extends BaseClient {
     async getTorrentList({
         offset = 0,
         limit = 20,
-        bypass_cache = true,
     }: {
         offset?: number;
         limit?: number;
-        bypass_cache?: boolean;
     } = {}): Promise<DebridFileList> {
+        // bypass_cache is required: without it an edit (airlock, rename) reads back its old value
         const data = await this.makeRequest<TorBoxTorrent[]>(
-            `/torrents/mylist?bypass_cache=${bypass_cache}&offset=${offset}&limit=${limit}&files=true`
+            `/torrents/mylist?bypass_cache=true&offset=${offset}&limit=${limit}`
         );
 
         const paginatedTorrents = Array.isArray(data) ? data : [];
@@ -259,7 +264,6 @@ export default class TorBoxClient extends BaseClient {
     }
 
     async findTorrents(searchQuery: string): Promise<DebridFile[]> {
-        // Optimized paginated search with early exit - reduces memory from 1000 items to 100-200 items
         if (!searchQuery.trim()) {
             return (await this.getTorrentList({ limit: 100 })).files;
         }
@@ -268,8 +272,9 @@ export default class TorBoxClient extends BaseClient {
         let offset = 0;
         const limit = 100;
         const maxResults = 100;
+        const maxPages = 10;
 
-        while (results.length < maxResults) {
+        for (let page = 0; page < maxPages && results.length < maxResults; page++) {
             const { files, hasMore } = await this.getTorrentList({ offset, limit });
             const matches = files.filter((file) => file.name.toLowerCase().includes(searchQuery.toLowerCase()));
             results.push(...matches);
@@ -285,7 +290,7 @@ export default class TorBoxClient extends BaseClient {
 
     async findTorrentById(torrentId: string): Promise<DebridFile | null> {
         try {
-            const torrent = await this.makeRequest<TorBoxTorrent>(`/torrents/mylist?id=${torrentId}`);
+            const torrent = await this.makeRequest<TorBoxTorrent>(`/torrents/mylist?bypass_cache=true&id=${torrentId}`);
             return this.mapToDebridFile(torrent);
         } catch {
             return null;
@@ -312,7 +317,6 @@ export default class TorBoxClient extends BaseClient {
             downloadUrl = this.buildDownloadUrl("torrent", torrentId, targetFileId);
         }
 
-        // Use file node's properties directly - no API call needed!
         return {
             link: downloadUrl,
             name: fileNode.name,
@@ -322,16 +326,14 @@ export default class TorBoxClient extends BaseClient {
 
     private async getResolvedDownloadLink(torrentId: string, targetFileId: string): Promise<string> {
         return this.makeRequest<string>(
-            `/torrents/requestdl?token=${this.account.apiKey}&torrent_id=${torrentId}&file_id=${targetFileId}&redirect=false`,
+            `/torrents/requestdl?torrent_id=${torrentId}&file_id=${targetFileId}&redirect=false`,
             { method: "GET" }
         );
     }
 
     async getTorrentFiles(torrentId: string): Promise<DebridNode[]> {
-        // For TorBox, files should already be available in DebridFile.files
-        // This method exists only for backward compatibility
-        // Make direct API request as fallback since this should rarely be called
-        const torrent = await this.makeRequest<TorBoxTorrent>(`/torrents/mylist?id=${torrentId}`);
+        // Fallback only: files normally arrive inlined on DebridFile.files
+        const torrent = await this.makeRequest<TorBoxTorrent>(`/torrents/mylist?bypass_cache=true&id=${torrentId}`);
         return this.mapToDebridFile(torrent).files || [];
     }
 
@@ -395,7 +397,6 @@ export default class TorBoxClient extends BaseClient {
     }
 
     async addMagnetLinks(magnetUris: string[]): Promise<Record<string, DebridFileAddStatus>> {
-        // Parallelize magnet link additions for 10x faster bulk operations
         const promises = magnetUris.map(async (magnet) => {
             try {
                 const formData = new FormData();
@@ -454,7 +455,6 @@ export default class TorBoxClient extends BaseClient {
     }
 
     async uploadTorrentFiles(files: File[]): Promise<Record<string, DebridFileAddStatus>> {
-        // Parallelize torrent file uploads for 10x faster bulk operations
         const promises = files.map(async (file) => {
             try {
                 const formData = new FormData();
@@ -511,8 +511,39 @@ export default class TorBoxClient extends BaseClient {
         );
     }
 
+    /**
+     * https://api.torbox.app/v1/api/torrents/checkcached — sent as a POST body, so the hash list
+     * is not bound by URL length. Still batched: the endpoint documents a ~100 cap per call.
+     */
+    async checkCache(hashes: string[]): Promise<CacheCheckResult[]> {
+        const found: Record<string, TorBoxCachedTorrent> = {};
+
+        for (let i = 0; i < hashes.length; i += 100) {
+            const response = await this.makeRequest<Record<string, TorBoxCachedTorrent> | TorBoxCachedTorrent[] | null>(
+                "/torrents/checkcached?format=object",
+                {
+                    method: "POST",
+                    body: JSON.stringify({ hashes: hashes.slice(i, i + 100) }),
+                    headers: { "Content-Type": "application/json" },
+                }
+            );
+
+            // `format=object` is a request, not a guarantee; an array would land as numeric keys
+            const entries = Array.isArray(response) ? response : Object.values(response ?? {});
+            for (const entry of entries) {
+                if (entry?.hash) found[entry.hash.toLowerCase()] = entry;
+            }
+        }
+
+        return hashes.map((hash) => ({
+            hash,
+            cached: hash in found,
+            filename: found[hash]?.name ?? "",
+            filesize: String(found[hash]?.size ?? 0),
+        }));
+    }
+
     async searchTorrents(query: string): Promise<TorBoxSearchResult[]> {
-        // Use different base URL for search API (search-api.torbox.app vs api.torbox.app)
         const searchApiUrl = getProxyUrl(`https://search-api.torbox.app/torrents/search/${encodeURIComponent(query)}`);
 
         const params = new URLSearchParams({
@@ -532,7 +563,6 @@ export default class TorBoxClient extends BaseClient {
         return data.data?.torrents || [];
     }
 
-    // Web download methods
     async addWebDownloads(links: string[]): Promise<WebDownloadAddResult[]> {
         const results = await Promise.allSettled(
             links.map(async (link) => {
@@ -570,7 +600,9 @@ export default class TorBoxClient extends BaseClient {
     }
 
     async getWebDownloadList({ offset, limit }: { offset: number; limit: number }): Promise<WebDownloadList> {
-        const data = await this.makeRequest<TorBoxWebDownload[]>(`/webdl/mylist?offset=${offset}&limit=${limit}`);
+        const data = await this.makeRequest<TorBoxWebDownload[]>(
+            `/webdl/mylist?bypass_cache=true&offset=${offset}&limit=${limit}`
+        );
         const downloads = Array.isArray(data) ? data : [];
 
         return {
@@ -591,6 +623,26 @@ export default class TorBoxClient extends BaseClient {
         });
     }
 
+    /** Airlocked items are never removed for inactivity. Item must be cached. */
+    async setAirlocked({
+        id,
+        target,
+        airlocked,
+    }: {
+        id: string;
+        target: "torrent" | "webdl";
+        airlocked: boolean;
+    }): Promise<void> {
+        const isTorrent = target === "torrent";
+        await this.makeRequest(isTorrent ? "/torrents/edittorrent" : "/webdl/editwebdownload", {
+            method: "PUT",
+            body: JSON.stringify({ [isTorrent ? "torrent_id" : "webdl_id"]: parseInt(id, 10), airlocked }),
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+    }
+
     private mapToWebDownload(dl: TorBoxWebDownload): WebDownload {
         const isReady = dl.download_finished && dl.download_present;
         const downloadLink = isReady ? this.buildDownloadUrl("webdl", dl.id, 0) : undefined;
@@ -605,6 +657,7 @@ export default class TorBoxClient extends BaseClient {
             progress: dl.progress * 100,
             createdAt: new Date(dl.created_at),
             error: dl.error || undefined,
+            airlocked: dl.airlocked ?? false,
         };
     }
 
@@ -621,16 +674,14 @@ export default class TorBoxClient extends BaseClient {
     private mapToDebridFile(torrent: TorBoxTorrent): DebridFile {
         const status: DebridFileStatus = this.mapTorrentStatus(torrent);
 
-        // Map files if they exist in the torrent response
-        const files: DebridFileNode[] | undefined = torrent.files
-            ? torrent.files.map(
-                  (file): DebridFileNode => ({
+        // `name` is the full path; short_name is only the basename
+        const files: DebridNode[] | undefined = torrent.files
+            ? buildTree(
+                  torrent.files.map((file) => ({
+                      path: file.name || file.short_name || "",
                       id: `${torrent.id}:${file.id}`,
-                      name: file.short_name || file.name,
                       size: file.size,
-                      type: "file",
-                      children: [],
-                  })
+                  }))
               )
             : undefined;
 
@@ -646,6 +697,8 @@ export default class TorBoxClient extends BaseClient {
             createdAt: new Date(torrent.created_at),
             completedAt: torrent.cached_at ? new Date(torrent.cached_at) : undefined,
             files,
+            airlocked: torrent.airlocked ?? false,
+            error: status === "failed" ? torrent.tracker_message || undefined : undefined,
         };
     }
 
@@ -681,7 +734,6 @@ export default class TorBoxClient extends BaseClient {
             case "expired":
                 return "inactive";
             default:
-                console.log("Unknown download state:", downloadState);
                 return "unknown";
         }
     }

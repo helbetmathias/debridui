@@ -1,5 +1,5 @@
 import type { Media, MediaItem } from "@/lib/media";
-import { cdnUrl } from "@/lib/utils/media";
+import { cdnUrl } from "@/lib/media/images";
 import { formatSize } from "../utils";
 import { type AddonSource, type AddonStream, type CatalogMeta, Resolution, SourceQuality } from "./types";
 

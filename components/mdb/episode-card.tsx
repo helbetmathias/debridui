@@ -4,9 +4,9 @@ import { ChevronDown, Play, Star } from "lucide-react";
 import { memo, useState } from "react";
 import { WatchButton } from "@/components/common/watch-button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { MediaEpisode, MediaDetails } from "@/lib/media";
+import type { MediaDetails, MediaEpisode } from "@/lib/media";
+import { resolveImageUrl } from "@/lib/media/images";
 import { cn, formatLocalizedDate } from "@/lib/utils";
-import { resolveImageUrl } from "@/lib/utils/media";
 import { Sources } from "./sources";
 
 interface ThumbnailContentProps {

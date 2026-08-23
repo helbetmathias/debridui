@@ -4,11 +4,11 @@ import { getStreamCapableAddons } from "@/hooks/use-addons";
 import { AddonClient } from "@/lib/addons/client";
 import { parseStreams } from "@/lib/addons/parser";
 import type { Addon, AddonSource, TvSearchParams } from "@/lib/addons/types";
+import type { Media } from "@/lib/media";
+import { openInPlayer } from "@/lib/media/player";
 import { queryClient } from "@/lib/query-client";
 import { selectBestSource } from "@/lib/streaming/source-selector";
-import type { Media } from "@/lib/media";
 import { FileType, MediaPlayer } from "@/lib/types";
-import { openInPlayer } from "@/lib/utils/media-player";
 import { usePreviewStore } from "./preview";
 import { useSettingsStore } from "./settings";
 

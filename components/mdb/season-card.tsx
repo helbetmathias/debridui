@@ -4,8 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 import { memo } from "react";
 import { type MediaSeason, mediaClient } from "@/lib/media";
+import { getPosterUrl } from "@/lib/media/images";
 import { cn, formatYear } from "@/lib/utils";
-import { getPosterUrl } from "@/lib/utils/media";
 
 interface SeasonCardProps {
     season: MediaSeason;

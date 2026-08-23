@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import { useTrendingMixed } from "@/hooks/use-media";
 import type { RankedMediaItem } from "@/lib/media";
+import { getBackdropUrl, getPosterUrl } from "@/lib/media/images";
 import { cn } from "@/lib/utils";
-import { getBackdropUrl, getPosterUrl } from "@/lib/utils/media";
 import { HeroCarouselSkeleton } from "./hero-carousel-skeleton";
 
 interface HeroSlideProps {

@@ -1,22 +1,24 @@
 "use client";
 
-import { Copy, Download, Loader2, PlayCircle, Trash2, View } from "lucide-react";
+import { Copy, Download, Loader2, Lock, LockOpen, PlayCircle, Trash2, View } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { WebDownloadStatusBadge } from "@/components/display";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { openInPlayer } from "@/lib/media/player";
 import { canPreviewFile } from "@/lib/preview/registry";
 import { usePreviewStore } from "@/lib/stores/preview";
 import { useSettingsStore } from "@/lib/stores/settings";
 import { FileType, MediaPlayer, type WebDownload } from "@/lib/types";
-import { cn, formatSize, getFileType, openInPlayer } from "@/lib/utils";
+import { cn, formatSize, getFileType } from "@/lib/utils";
 
 interface DownloadItemProps {
     download: WebDownload;
     onDelete: (id: string) => Promise<unknown>;
     onGetLink: (download: WebDownload) => Promise<string>;
+    onSetAirlocked?: ((params: { id: string; airlocked: boolean }) => Promise<unknown>) | null;
     isSelected?: boolean;
     onToggleSelect?: (id: string) => void;
 }
@@ -25,18 +27,19 @@ export const DownloadItem = memo(function DownloadItem({
     download,
     onDelete,
     onGetLink,
+    onSetAirlocked,
     isSelected = false,
     onToggleSelect,
 }: DownloadItemProps) {
     const [loading, setLoading] = useState<"copy" | "download" | "preview" | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const { get } = useSettingsStore();
+    const [airlocking, setAirlocking] = useState(false);
     const openSinglePreview = usePreviewStore((s) => s.openSinglePreview);
 
     const fileType = useMemo(() => getFileType(download.name), [download.name]);
     const isPreviewable = useMemo(() => canPreviewFile(fileType), [fileType]);
     const isVideo = fileType === FileType.VIDEO;
-    const mediaPlayer = get("mediaPlayer");
+    const mediaPlayer = useSettingsStore((s) => s.settings.mediaPlayer);
     const usesExternalPlayer = isVideo && mediaPlayer !== MediaPlayer.BROWSER;
 
     const getLink = async (action: "copy" | "download" | "preview") => {
@@ -91,6 +94,18 @@ export const DownloadItem = memo(function DownloadItem({
             toast.error(error instanceof Error ? error.message : "Failed to remove");
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const handleAirlock = async () => {
+        setAirlocking(true);
+        try {
+            await onSetAirlocked?.({ id: download.id, airlocked: !download.airlocked });
+            toast.success(download.airlocked ? "Removed from Airlock" : "Added to Airlock");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to update Airlock");
+        } finally {
+            setAirlocking(false);
         }
     };
 
@@ -194,6 +209,26 @@ export const DownloadItem = memo(function DownloadItem({
                                         <Download className="size-3.5 md:size-4" />
                                     )}
                                 </Button>
+                                {onSetAirlocked && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={cn(
+                                            "size-7 md:size-8 hover:text-foreground",
+                                            download.airlocked ? "text-foreground" : "text-muted-foreground"
+                                        )}
+                                        onClick={handleAirlock}
+                                        disabled={airlocking}
+                                        title={download.airlocked ? "Remove from Airlock" : "Add to Airlock"}>
+                                        {airlocking ? (
+                                            <Loader2 className="size-3.5 md:size-4 animate-spin" />
+                                        ) : download.airlocked ? (
+                                            <Lock className="size-3.5 md:size-4" />
+                                        ) : (
+                                            <LockOpen className="size-3.5 md:size-4" />
+                                        )}
+                                    </Button>
+                                )}
                             </>
                         )}
                         <Button

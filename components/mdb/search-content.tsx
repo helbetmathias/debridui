@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { useRecordSearchPick } from "@/hooks/use-search-history";
 import { useSearchLogic } from "@/hooks/use-search-logic";
 import type { MediaSearchResult } from "@/lib/media";
+import { getPosterUrl } from "@/lib/media/images";
 import type { DebridFile } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { getPosterUrl } from "@/lib/utils/media";
 import { SearchResults } from "./search-results";
 
 interface SearchContentProps {
@@ -55,11 +55,9 @@ export function SearchContent({
         return () => clearTimeout(timer);
     }, [query, syncQueryParam]);
 
-    const { fileResults, mediaResults, sourceResults, isFileSearching, isMediaSearching, isSourceSearching } =
-        useSearchLogic({
-            query: debouncedQuery,
-            enabled: true,
-        });
+    const search = useSearchLogic({ query: debouncedQuery, enabled: true });
+    const { linkedResult, fileResults, mediaResults, sourceResults } = search;
+    const isBusyLoading = search.isFileSearching || search.isMediaSearching || search.isSourceSearching;
 
     const handleFileSelect = useCallback(
         (file: DebridFile) => {
@@ -116,15 +114,13 @@ export function SearchContent({
         [router, onClose, variant, recordPick]
     );
 
-    const modalIsBusy =
-        query.trim() !== "" &&
-        (query.trim() !== debouncedQuery || isFileSearching || isMediaSearching || isSourceSearching);
+    const isBusy = query.trim() !== "" && (query.trim() !== debouncedQuery || isBusyLoading);
 
     if (variant === "modal") {
         return (
             <>
                 <div className="relative border-b border-border/50">
-                    {modalIsBusy ? (
+                    {isBusy ? (
                         <Loader2
                             aria-label="Searching"
                             className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 size-4 text-primary animate-spin"
@@ -147,14 +143,9 @@ export function SearchContent({
                         // Remount whenever the result-set composition changes so cmdk re-registers items in DOM order.
                         // Without this, items registered earlier keep "first" status even after files
                         // mount above them — and cmdk navigates by registration order, not DOM order.
-                        key={`${debouncedQuery}:${!!fileResults?.length}:${!!mediaResults?.length}:${!!sourceResults?.length}`}
+                        key={`${debouncedQuery}:${!!linkedResult}:${!!fileResults?.length}:${!!mediaResults?.length}:${!!sourceResults?.length}`}
                         query={debouncedQuery}
-                        fileResults={fileResults}
-                        mediaResults={mediaResults}
-                        sourceResults={sourceResults}
-                        isFileSearching={isFileSearching}
-                        isMediaSearching={isMediaSearching}
-                        isSourceSearching={isSourceSearching}
+                        search={search}
                         onFileSelect={handleFileSelect}
                         onMediaSelect={handleMediaSelect}
                         onHistoryItemClick={onClose}
@@ -166,10 +157,6 @@ export function SearchContent({
     }
 
     // Page variant
-    const isBusy =
-        query.trim() !== "" &&
-        (query.trim() !== debouncedQuery || isFileSearching || isMediaSearching || isSourceSearching);
-
     return (
         <div className={cn("space-y-8", className)}>
             <form
@@ -213,12 +200,7 @@ export function SearchContent({
 
             <SearchResults
                 query={debouncedQuery}
-                fileResults={fileResults}
-                mediaResults={mediaResults}
-                sourceResults={sourceResults}
-                isFileSearching={isFileSearching}
-                isMediaSearching={isMediaSearching}
-                isSourceSearching={isSourceSearching}
+                search={search}
                 onFileSelect={handleFileSelect}
                 onMediaSelect={handleMediaSelect}
                 variant="page"
