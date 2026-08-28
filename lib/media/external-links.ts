@@ -40,6 +40,14 @@ const PROVIDERS: { idType: TraktIdType; source: string; pattern: RegExp; typeFro
         source: "TheTVDB",
         pattern: /(?:^|\W)(?:[\w-]+\.)*thetvdb\.com\/[^\s]*[?&]id=(\d+)/i,
     },
+    // trakt.tv/movies/the-matrix-1999 or /shows/breaking-bad — id is a slug or a numeric trakt id,
+    // and any trailing segment (/seasons/1/episodes/2, /comments, /ratings) still names the title
+    {
+        idType: "trakt",
+        source: "Trakt",
+        pattern: /(?:^|\W)(?:[\w-]+\.)*trakt\.tv\/(?:movies|shows)\/([\w-]+)/i,
+        typeFrom: /trakt\.tv\/(movies|shows)\//i,
+    },
 ];
 
 export function parseMediaLink(input: string): MediaLink | null {
@@ -47,7 +55,12 @@ export function parseMediaLink(input: string): MediaLink | null {
         const id = input.match(pattern)?.[1];
         if (!id) continue;
         const segment = typeFrom ? input.match(typeFrom)?.[1]?.toLowerCase() : undefined;
-        return { idType, id, source, type: segment ? (segment === "tv" ? "show" : "movie") : undefined };
+        return {
+            idType,
+            id,
+            source,
+            type: segment ? (segment.startsWith("tv") || segment.startsWith("show") ? "show" : "movie") : undefined,
+        };
     }
     return null;
 }

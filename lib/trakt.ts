@@ -471,6 +471,12 @@ export class TraktClient {
         type?: "movie" | "show",
         extended = "full,images"
     ): Promise<TraktSearchResult[]> {
+        // Trakt slugs (from a trakt.tv URL) aren't accepted by /search — the type endpoints take them
+        if (idType === "trakt" && type && !/^\d+$/.test(id)) {
+            const media = type === "movie" ? await this.getMovie(id, extended) : await this.getShow(id, extended);
+            return [{ type, [type]: media, score: 0 }];
+        }
+
         // tmdb ids are namespaced per type — movie/550 and tv/550 are different titles
         const query = type ? `?type=${type}` : "";
         const results = await this.makeRequest<TraktSearchResult[]>(
