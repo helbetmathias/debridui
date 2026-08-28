@@ -5,6 +5,7 @@ export const ACCOUNT_TYPE_LABELS = {
     [AccountType.TORBOX]: "TorBox",
     [AccountType.ALLDEBRID]: "AllDebrid",
     [AccountType.PREMIUMIZE]: "Premiumize",
+    [AccountType.DEBRIDLINK]: "Debrid-Link",
 };
 
 export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
@@ -12,6 +13,8 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
     [AccountType.TORBOX]: "https://wsrv.nl/?url=https://i.ibb.co/YgB6zFK/icon.png&w=280&h=280&maxage=1y",
     [AccountType.ALLDEBRID]: "https://wsrv.nl/?url=https://i.ibb.co/tTDfYx0v/icon.jpg&w=280&h=280&maxage=1y",
     [AccountType.PREMIUMIZE]: "https://wsrv.nl/?url=https://www.premiumize.me/favicon.ico&w=280&h=280&maxage=1y",
+    [AccountType.DEBRIDLINK]:
+        "https://wsrv.nl/?url=https://cdn.debrid-link.com/img/fav/favicon.ico&w=280&h=280&maxage=1y",
 };
 
 export const EXTENSION_TO_FILE_TYPE: Record<string, FileType> = {

@@ -1,11 +1,12 @@
 "use client";
 
-import { ClipboardPaste, Paperclip, Plus, SearchCheck, X } from "lucide-react";
+import { ClipboardPaste, Info, Paperclip, Plus, SearchCheck, X } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import { useAuthGuaranteed } from "@/components/auth/auth-provider";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -169,9 +170,7 @@ export function CacheCheckPanel({ open, onOpenChange }: { open: boolean; onOpenC
     };
 
     const title = "Check cache";
-    const description = `Checking only ever sends the infohash — your tracker is never contacted.${
-        isNative ? "" : ` ${PROBE_EXPLAINER}`
-    }`;
+    const description = "Checking only ever sends the infohash — your tracker is never contacted.";
 
     const summary = isChecking
         ? "Checking…"
@@ -225,6 +224,13 @@ export function CacheCheckPanel({ open, onOpenChange }: { open: boolean; onOpenC
             </form>
 
             <div className="flex-1 overflow-y-auto border-t border-border/50">
+                {!isNative && !rows.length && (
+                    <Alert className="rounded-none border-0 px-4 py-3 text-xs sm:text-sm">
+                        <Info className="size-3.5 sm:size-4" />
+                        <AlertDescription className="text-xs sm:text-sm">{PROBE_EXPLAINER}</AlertDescription>
+                    </Alert>
+                )}
+
                 {rows.length ? (
                     <ItemGroup>
                         {rows.map((row) => (

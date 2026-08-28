@@ -5,6 +5,7 @@ export enum AccountType {
     TORBOX = "torbox",
     ALLDEBRID = "alldebrid",
     PREMIUMIZE = "premiumize",
+    DEBRIDLINK = "debrid-link",
 }
 
 // Account schemas (base → inherited)
