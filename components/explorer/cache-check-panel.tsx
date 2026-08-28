@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPaste, HelpCircle, Paperclip, Plus, SearchCheck, TriangleAlert, X } from "lucide-react";
+import { ClipboardPaste, Paperclip, Plus, SearchCheck, X } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
@@ -14,7 +14,6 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCacheCheck } from "@/hooks/use-cache-check";
 import { invalidateTorrentQueries } from "@/hooks/use-file-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -170,12 +169,24 @@ export function CacheCheckPanel({ open, onOpenChange }: { open: boolean; onOpenC
     };
 
     const title = "Check cache";
-    const description = "Checking only ever sends the infohash — your tracker is never contacted.";
+    const description = `Checking only ever sends the infohash — your tracker is never contacted.${
+        isNative ? "" : ` ${PROBE_EXPLAINER}`
+    }`;
+
+    const summary = isChecking
+        ? "Checking…"
+        : failed
+          ? "The check didn't finish, so nothing here is confirmed cached."
+          : uncachedPicked.length
+            ? `${uncachedPicked.length} selected ${uncachedPicked.length === 1 ? "item isn't" : "items aren't"} cached`
+            : pendingCount
+              ? `${rows.length} to check`
+              : `${cachedCount} of ${rows.length} cached`;
 
     const body = (
         <>
             <form
-                className="px-4"
+                className="px-4 pb-4"
                 onSubmit={(e) => {
                     e.preventDefault();
                     submitDraft(draft);
@@ -185,10 +196,14 @@ export function CacheCheckPanel({ open, onOpenChange }: { open: boolean; onOpenC
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         placeholder="Paste a magnet link or hash"
-                        className="font-mono"
+                        className="font-mono placeholder:text-xs sm:placeholder:text-sm"
                         aria-label="Magnet link or hash"
                     />
                     <InputGroupAddon align="inline-end">
+                        <input {...getInputProps()} />
+                        <InputGroupButton onClick={openFilePicker} size="icon-xs" aria-label="Pick .torrent files">
+                            <Paperclip />
+                        </InputGroupButton>
                         <InputGroupButton
                             onClick={async () => {
                                 const text = await getTextFromClipboard();
@@ -209,39 +224,6 @@ export function CacheCheckPanel({ open, onOpenChange }: { open: boolean; onOpenC
                 </InputGroup>
             </form>
 
-            <div className="flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground">
-                <input {...getInputProps()} />
-                <button
-                    type="button"
-                    onClick={openFilePicker}
-                    className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 font-light text-foreground underline-offset-4 hover:underline">
-                    <Paperclip className="size-3.5" strokeWidth={1.5} />
-                    Add .torrent
-                </button>
-
-                <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                    <span className="font-light">
-                        {pendingCount ? `${rows.length} to check` : `${cachedCount} of ${rows.length} cached`}
-                    </span>
-                    {!isNative && (
-                        <TooltipProvider delayDuration={250}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="How this check works"
-                                        className="transition-colors hover:text-foreground">
-                                        <HelpCircle className="size-3.5" strokeWidth={1.5} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-64">{PROBE_EXPLAINER}</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-                    {isChecking && <Spinner className="size-3.5" />}
-                </span>
-            </div>
-
             <div className="flex-1 overflow-y-auto border-t border-border/50">
                 {rows.length ? (
                     <ItemGroup>
@@ -257,58 +239,47 @@ export function CacheCheckPanel({ open, onOpenChange }: { open: boolean; onOpenC
                         ))}
                     </ItemGroup>
                 ) : (
-                    <Empty className="border-0">
+                    <Empty className="gap-4 border-0 p-4 sm:gap-6 sm:p-6">
                         <EmptyHeader>
-                            <EmptyMedia variant="icon">
-                                <SearchCheck strokeWidth={1.5} />
+                            <EmptyMedia variant="icon" className="mb-0 size-8 sm:mb-2 sm:size-10">
+                                <SearchCheck className="size-4 sm:size-6" strokeWidth={1.5} />
                             </EmptyMedia>
-                            <EmptyTitle className="font-light">Nothing to check yet</EmptyTitle>
-                            <EmptyDescription>Add a magnet link above, or pick a .torrent file.</EmptyDescription>
+                            <EmptyTitle className="text-base font-light sm:text-lg">Nothing to check yet</EmptyTitle>
+                            <EmptyDescription className="text-xs sm:text-sm/relaxed">
+                                Add a magnet link above, or pick a .torrent file.
+                            </EmptyDescription>
                         </EmptyHeader>
                     </Empty>
                 )}
             </div>
 
             {rows.length > 0 && (
-                <div className="space-y-2 border-t border-border/50 p-3">
-                    {uncachedPicked.length > 0 && (
-                        <p className="flex items-start gap-2 text-xs font-light text-muted-foreground">
-                            <TriangleAlert className="mt-px size-3.5 shrink-0" strokeWidth={1.5} />
-                            <span>
-                                {uncachedPicked.length} selected{" "}
-                                {uncachedPicked.length === 1 ? "item isn't" : "items aren't"} confirmed cached — those
-                                keep their trackers, so the service will announce.
-                            </span>
-                        </p>
-                    )}
+                <div className="flex items-center gap-3 border-t border-border/50 px-4 py-3">
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs font-light text-muted-foreground">
+                        {isChecking && <Spinner className="size-3.5" />}
+                        <span className="truncate">{summary}</span>
+                    </span>
 
-                    {failed && (
-                        <p className="flex items-start gap-2 text-xs font-light text-muted-foreground">
-                            <TriangleAlert className="mt-px size-3.5 shrink-0" strokeWidth={1.5} />
-                            <span>The check didn't complete, so nothing here is confirmed cached.</span>
-                        </p>
-                    )}
-
-                    <div className="flex items-center gap-2">
+                    <span className="ml-auto flex shrink-0 items-center gap-2">
                         {(failed || (!isNative && pendingCount > 0)) && (
                             <Button
-                                variant="outline"
+                                variant="ghost"
+                                size="sm"
                                 disabled={isChecking || !pendingCount}
-                                onClick={failed ? retry : run}
-                                className="flex-1">
-                                {failed ? "Retry check" : `Check ${pendingCount}`}
+                                onClick={failed ? retry : run}>
+                                {failed ? "Retry" : `Check ${pendingCount}`}
                             </Button>
                         )}
                         {(isNative || results.size > 0) && (
                             <Button
+                                size="sm"
                                 disabled={isAdding || !picked.length}
-                                onClick={() => (uncachedPicked.length ? setConfirming(true) : commit(picked))}
-                                className="flex-1">
+                                onClick={() => (uncachedPicked.length ? setConfirming(true) : commit(picked))}>
                                 {isAdding && <Spinner />}
-                                Add {picked.length || ""} selected
+                                Add {picked.length || ""}
                             </Button>
                         )}
-                    </div>
+                    </span>
                 </div>
             )}
         </>
@@ -369,7 +340,7 @@ const CacheRow = memo(function CacheRow({
         <Item
             size="sm"
             asChild
-            className={cn("rounded-none border-b-border/50", selected ? "bg-muted/30" : "hover:bg-muted/20")}>
+            className={cn("group rounded-none border-b-border/50", selected ? "bg-muted/30" : "hover:bg-muted/20")}>
             <label htmlFor={row.key} className="cursor-pointer border-b">
                 <ItemMedia>
                     <Checkbox id={row.key} checked={selected} onCheckedChange={() => onToggle(row.key, !selected)} />
@@ -414,7 +385,7 @@ const CacheRow = memo(function CacheRow({
                             onRemove(row.key);
                         }}
                         aria-label={`Remove ${row.label}`}
-                        className="text-muted-foreground hover:text-foreground">
+                        className="text-muted-foreground transition-opacity hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">
                         <X className="size-3.5" />
                     </Button>
                 </ItemActions>
