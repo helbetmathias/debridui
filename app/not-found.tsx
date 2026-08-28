@@ -1,9 +1,12 @@
 import { FileQuestion } from "lucide-react";
+import { UserMenu } from "@/components/auth/user-menu";
 import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen gap-10 p-6">
+            <UserMenu />
+
             <div className="flex flex-col items-center gap-6 text-center max-w-md">
                 <FileQuestion className="size-10 text-muted-foreground" strokeWidth={1.5} />
                 <div className="space-y-3">

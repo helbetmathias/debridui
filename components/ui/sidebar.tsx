@@ -346,7 +346,10 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
         <div
             data-slot="sidebar-footer"
             data-sidebar="footer"
-            className={cn("flex flex-col gap-3 p-4 pt-3 border-t border-sidebar-border/50", className)}
+            className={cn(
+                "flex flex-col gap-3 p-4 pt-3 border-t border-sidebar-border/50 group-data-[collapsible=icon]:px-[calc((var(--sidebar-width-icon)-2.5rem)/2)]",
+                className
+            )}
             {...props}
         />
     );
@@ -369,7 +372,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
             data-slot="sidebar-content"
             data-sidebar="content"
             className={cn(
-                "flex min-h-0 flex-1 flex-col gap-3 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-2",
+                "flex min-h-0 flex-1 flex-col gap-3 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-2 group-data-[collapsible=icon]:px-0",
                 className
             )}
             {...props}
@@ -382,7 +385,10 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
         <div
             data-slot="sidebar-group"
             data-sidebar="group"
-            className={cn("relative flex w-full min-w-0 flex-col px-2 py-1", className)}
+            className={cn(
+                "relative flex w-full min-w-0 flex-col px-2 py-1 group-data-[collapsible=icon]:px-[calc((var(--sidebar-width-icon)-2.5rem)/2)]",
+                className
+            )}
             {...props}
         />
     );
@@ -466,7 +472,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-    "peer/menu-button flex w-full items-center gap-3 overflow-hidden rounded-sm p-2.5 text-left text-sm outline-hidden ring-sidebar-ring transition-all duration-300 cursor-pointer hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-l-2 data-[active=true]:border-primary data-[active=true]:pl-[9px] data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-5 [&>svg]:shrink-0",
+    "peer/menu-button flex w-full items-center gap-3 overflow-hidden rounded-sm p-2.5 text-left text-sm outline-hidden ring-sidebar-ring transition-all duration-300 cursor-pointer hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-l-2 data-[active=true]:border-primary data-[active=true]:pl-[9px] data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-2.5! group-data-[collapsible=icon]:data-[active=true]:border-l-0 [&>span:last-child]:truncate [&>svg]:size-5 [&>svg]:shrink-0",
     {
         variants: {
             variant: {
@@ -477,7 +483,7 @@ const sidebarMenuButtonVariants = cva(
             size: {
                 default: "h-10 text-sm font-light",
                 sm: "h-9 text-xs font-light",
-                lg: "h-14 text-base font-light group-data-[collapsible=icon]:p-0!",
+                lg: "h-14 text-base font-light group-data-[collapsible=icon]:p-0.5!",
             },
         },
         defaultVariants: {

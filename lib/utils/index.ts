@@ -27,6 +27,15 @@ export const formatSize = (bytes: number | undefined) => {
     return `${parseFloat((bytes / 1024 ** i).toFixed(2))} ${sizes[i]}`;
 };
 
+/** Up to two initials from a display name, for avatar fallbacks. */
+export const getInitials = (name: string) =>
+    name
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "U";
+
 export const formatAccountType = (type: AccountType | string) => {
     return ACCOUNT_TYPE_LABELS[type as AccountType] || type;
 };

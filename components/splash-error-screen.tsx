@@ -1,4 +1,5 @@
 import { AlertCircle } from "lucide-react";
+import { UserMenu } from "@/components/auth/user-menu";
 import { Button } from "@/components/ui/button";
 
 interface SplashErrorScreenProps {
@@ -6,18 +7,13 @@ interface SplashErrorScreenProps {
     error?: Error | null;
     onRetry?: () => void;
     onDelete?: () => void;
-    onLogout?: () => void;
 }
 
-export function SplashErrorScreen({
-    title = "Connection Error",
-    error,
-    onRetry,
-    onDelete,
-    onLogout,
-}: SplashErrorScreenProps) {
+export function SplashErrorScreen({ title = "Connection Error", error, onRetry, onDelete }: SplashErrorScreenProps) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+            <UserMenu className="z-60" />
+
             {/* Decorative background elements */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
                 {/* Subtle error-state glow */}
@@ -98,11 +94,6 @@ export function SplashErrorScreen({
                             onClick={onDelete}
                             className="flex-1 h-10 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
                             Remove Account
-                        </Button>
-                    )}
-                    {onLogout && (
-                        <Button variant="outline" onClick={onLogout} className="flex-1 h-10">
-                            Logout
                         </Button>
                     )}
                 </div>

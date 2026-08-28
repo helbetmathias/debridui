@@ -17,6 +17,30 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
         "https://wsrv.nl/?url=https://cdn.debrid-link.com/img/fav/favicon.ico&w=280&h=280&maxage=1y",
 };
 
+/** Where each service exposes a personal API key, and what the user does once there. */
+export const ACCOUNT_KEY_SOURCES: Record<AccountType, { url: string; hint: string }> = {
+    [AccountType.REALDEBRID]: {
+        url: "https://real-debrid.com/apitoken",
+        hint: "Sign in and copy the token shown on the page.",
+    },
+    [AccountType.TORBOX]: {
+        url: "https://torbox.app/settings",
+        hint: "Scroll to the API key section and copy it.",
+    },
+    [AccountType.ALLDEBRID]: {
+        url: "https://alldebrid.com/apikeys/",
+        hint: "Create a key and copy it.",
+    },
+    [AccountType.PREMIUMIZE]: {
+        url: "https://www.premiumize.me/account",
+        hint: "Scroll to API and copy the API key.",
+    },
+    [AccountType.DEBRIDLINK]: {
+        url: "https://debrid-link.com/webapp/apikey",
+        hint: "Create a key and copy it.",
+    },
+};
+
 export const EXTENSION_TO_FILE_TYPE: Record<string, FileType> = {
     // Video
     mp4: FileType.VIDEO,

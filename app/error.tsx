@@ -2,6 +2,7 @@
 
 import { AlertCircle } from "lucide-react";
 import { useEffect } from "react";
+import { UserMenu } from "@/components/auth/user-menu";
 import { Button } from "@/components/ui/button";
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -11,6 +12,8 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen gap-10 p-6">
+            <UserMenu />
+
             <div className="flex flex-col items-center gap-6 text-center max-w-md">
                 <AlertCircle className="size-10 text-destructive" strokeWidth={1.5} />
                 <div className="space-y-3">
