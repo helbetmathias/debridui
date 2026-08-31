@@ -6,7 +6,7 @@ import { useAuthGuaranteed } from "@/components/auth/auth-provider";
 import type TorBoxClient from "@/lib/clients/torbox";
 import type { TorBoxSearchResult } from "@/lib/clients/torbox";
 import { type MediaSearchResult, mediaClient } from "@/lib/media";
-import { parseMediaLink } from "@/lib/media/external-links";
+import { parseMediaLink, parseTraktSlug } from "@/lib/media/external-links";
 import { AccountType, type DebridFile } from "@/lib/types";
 import { getFindTorrentsCacheKey } from "@/lib/utils/cache-keys";
 
@@ -49,6 +49,21 @@ export function useSearchLogic({ query, enabled = true }: UseSearchLogicOptions)
     const { data: linkMatches, isLoading: isLinkResolving } = useQuery({
         queryKey: ["tmdb", "idLookup", link?.idType, link?.id, link?.type],
         queryFn: async () => {
+            if (link!.idType === "trakt") {
+                const { query, year } = parseTraktSlug(link!.id);
+                if (!query || /^\d+$/.test(query)) return [];
+
+                const matches = await mediaClient.search(query, link!.type ? [link!.type] : ["movie", "show"]);
+                if (!year) return matches;
+
+                // Prefer the matching release year without discarding fallback results when TMDB differs by a year.
+                return matches.toSorted((a, b) => {
+                    const aYear = a.movie?.year ?? a.show?.year;
+                    const bYear = b.movie?.year ?? b.show?.year;
+                    return Number(bYear === year) - Number(aYear === year);
+                });
+            }
+
             const matches = await mediaClient.idLookup(link!.idType, link!.id);
             return link?.type ? matches.filter((result) => result.type === link.type) : matches;
         },

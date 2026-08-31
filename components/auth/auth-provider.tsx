@@ -3,9 +3,9 @@
 import { useIsRestoring } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { SplashErrorScreen } from "@/components/splash-error-screen";
 import { SplashScreen } from "@/components/splash-screen";
+import { useLogout } from "@/hooks/use-logout";
 import { useDebridUserInfo, useRemoveUserAccount, useUserAccounts } from "@/hooks/use-user-accounts";
 import { hydrateSettingsFromServer, useUserSettings } from "@/hooks/use-user-settings";
 import { authClient } from "@/lib/auth-client";
@@ -14,7 +14,6 @@ import { getClientInstance } from "@/lib/clients";
 import type { UserAccount } from "@/lib/db";
 import { useSelectionStore } from "@/lib/stores/selection";
 import type { AccountType } from "@/lib/types";
-import { clearAppCache } from "@/lib/utils";
 
 interface AuthContextType {
     session: ReturnType<typeof authClient.useSession>["data"];
@@ -67,7 +66,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const accountsLength = userAccounts.length;
 
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const { logout, isLoggingOut } = useLogout();
 
     // `rerender-memo` - Memoize account ID selection (involves array operations)
     const currentAccountId = useMemo(() => {
@@ -150,23 +149,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
     }, []);
 
-    const logout = useCallback(async () => {
-        setIsLoggingOut(true);
-        const toastId = toast.loading("Logging out...");
-        try {
-            await clearAppCache();
-            await authClient.signOut();
-
-            toast.success("Logged out successfully", { id: toastId });
-            router.push("/login");
-        } catch (error) {
-            toast.error("Failed to logout", { id: toastId });
-            console.error("Error logging out:", error);
-        } finally {
-            setIsLoggingOut(false);
-        }
-    }, [router]);
-
     // `rerender-memo` - Memoize context value to prevent unnecessary rerenders
     const contextValue = useMemo<AuthContextType>(
         () => ({
@@ -216,7 +198,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 error={userError}
                 onRetry={refetchUser}
                 onDelete={() => removeAccount(currentAccount.id)}
-                onLogout={logout}
             />
         );
     }

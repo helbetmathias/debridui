@@ -1,7 +1,7 @@
 import type { MediaIdType } from "@/lib/media";
 
 export interface MediaLink {
-    idType: MediaIdType;
+    idType: MediaIdType | "trakt";
     id: string;
     source: string;
     /** Set when the URL names the type; tmdb ids are only unique within one */
@@ -9,13 +9,13 @@ export interface MediaLink {
 }
 
 /**
- * External media-database URLs a user might paste. Each yields an id TMDB can resolve via
- * idLookup, so a new provider is one row here and nothing downstream changes.
+ * External media-database URLs a user might paste. Numeric provider IDs are resolved through
+ * TMDB's external-id lookup. Trakt URLs carry a slug, which is converted to a TMDB title search.
  *
  * Host is matched as `(?:[\w-]+\.)*domain` preceded by a non-word char, so lookalike domains
  * (notimdb.com, imdb.com.phish.co) do not match.
  */
-const PROVIDERS: { idType: MediaIdType; source: string; pattern: RegExp; typeFrom?: RegExp }[] = [
+const PROVIDERS: { idType: MediaLink["idType"]; source: string; pattern: RegExp; typeFrom?: RegExp }[] = [
     // imdb.com/title/tt0111161 — optional locale segment: imdb.com/de/title/tt0384766
     {
         idType: "imdb",
@@ -40,6 +40,14 @@ const PROVIDERS: { idType: MediaIdType; source: string; pattern: RegExp; typeFro
         source: "TheTVDB",
         pattern: /(?:^|\W)(?:[\w-]+\.)*thetvdb\.com\/[^\s]*[?&]id=(\d+)/i,
     },
+    // trakt.tv/movies/the-matrix-1999 or /shows/breaking-bad — id is a slug or a numeric trakt id,
+    // and any trailing segment (/seasons/1/episodes/2, /comments, /ratings) still names the title
+    {
+        idType: "trakt",
+        source: "Trakt",
+        pattern: /(?:^|\W)(?:[\w-]+\.)*trakt\.tv\/(?:movies|shows)\/([\w-]+)/i,
+        typeFrom: /trakt\.tv\/(movies|shows)\//i,
+    },
 ];
 
 export function parseMediaLink(input: string): MediaLink | null {
@@ -47,7 +55,26 @@ export function parseMediaLink(input: string): MediaLink | null {
         const id = input.match(pattern)?.[1];
         if (!id) continue;
         const segment = typeFrom ? input.match(typeFrom)?.[1]?.toLowerCase() : undefined;
-        return { idType, id, source, type: segment ? (segment === "tv" ? "show" : "movie") : undefined };
+        return {
+            idType,
+            id,
+            source,
+            type: segment ? (segment.startsWith("tv") || segment.startsWith("show") ? "show" : "movie") : undefined,
+        };
     }
     return null;
+}
+
+/** Convert a Trakt title slug such as `the-matrix-1999` into a TMDB search query and optional year. */
+export function parseTraktSlug(slug: string): { query: string; year?: number } {
+    const yearMatch = slug.match(/-(\d{4})$/);
+    const query = slug
+        .replace(/-\d{4}$/, "")
+        .replace(/-+/g, " ")
+        .trim();
+
+    return {
+        query,
+        year: yearMatch ? Number(yearMatch[1]) : undefined,
+    };
 }

@@ -1,11 +1,13 @@
 import { AccountType } from "../schemas";
 import type { Account } from "../types";
 import AllDebridClient from "./alldebrid";
+import DebridLinkClient from "./debrid-link";
 import PremiumizeClient from "./premiumize";
 import RealDebridClient from "./realdebrid";
 import TorBoxClient from "./torbox";
 
 export { default as AllDebridClient } from "./alldebrid";
+export { default as DebridLinkClient } from "./debrid-link";
 export { default as PremiumizeClient } from "./premiumize";
 export { default as RealDebridClient } from "./realdebrid";
 export { default as TorBoxClient } from "./torbox";
@@ -13,7 +15,8 @@ export type DebridClient =
     | InstanceType<typeof RealDebridClient>
     | InstanceType<typeof TorBoxClient>
     | InstanceType<typeof AllDebridClient>
-    | InstanceType<typeof PremiumizeClient>;
+    | InstanceType<typeof PremiumizeClient>
+    | InstanceType<typeof DebridLinkClient>;
 
 export function getClient({ type }: { type: AccountType | string }) {
     switch (type as AccountType) {
@@ -25,6 +28,8 @@ export function getClient({ type }: { type: AccountType | string }) {
             return AllDebridClient;
         case AccountType.PREMIUMIZE:
             return PremiumizeClient;
+        case AccountType.DEBRIDLINK:
+            return DebridLinkClient;
         default:
             throw new Error(`Unsupported account type: ${type}`);
     }

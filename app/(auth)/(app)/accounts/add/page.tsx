@@ -10,11 +10,11 @@ export default function AddAccountPage() {
             <PageHeader
                 icon={UserPlus}
                 title="Add Account"
-                description="Connect a new debrid service account"
+                description="Pick a service, then paste its API key"
                 divider
             />
 
-            <div className="max-w-md mx-auto">
+            <div className="max-w-xl mx-auto">
                 <AddAccountForm />
             </div>
         </div>

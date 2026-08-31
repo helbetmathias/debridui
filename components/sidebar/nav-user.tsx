@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import { getInitials } from "@/lib/utils";
 
 export function NavUser() {
     const { isMobile, setOpenMobile } = useSidebar();
@@ -29,13 +30,7 @@ export function NavUser() {
         avatar: session?.user?.image || "",
     };
 
-    const userInitials =
-        user.name
-            ?.split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2) || "U";
+    const userInitials = getInitials(user.name);
 
     const handleNavigation = () => {
         setDropdownOpen(false);
@@ -52,7 +47,7 @@ export function NavUser() {
                         <SidebarMenuButton
                             size="lg"
                             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                            <Avatar className="h-8 w-8 rounded-sm border border-border/50">
+                            <Avatar className="size-9 shrink-0 rounded-sm border border-border/50">
                                 <AvatarImage src={user.avatar} alt={user.name} />
                                 <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
                             </Avatar>

@@ -102,7 +102,7 @@ export function MoreSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
                                         <LogOut className="size-4" strokeWidth={1.5} />
                                     </span>
                                     <span className="flex-1 text-left text-sm font-light">
-                                        {isLoggingOut ? "Logging out…" : "Log out"}
+                                        {isLoggingOut ? "Logging out..." : "Log out"}
                                     </span>
                                 </button>
                             </li>
