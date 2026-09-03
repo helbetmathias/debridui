@@ -5,6 +5,7 @@ import { SectionDivider } from "@/components/section-divider";
 import type { MediaDetails } from "@/lib/media";
 import { MediaHeader, MediaHeaderSkeleton } from "./media-header";
 import { PeopleSection } from "./people-section";
+import { RelatedMediaSection } from "./related-media-section";
 import { Sources } from "./sources";
 
 interface MovieDetailsProps {
@@ -33,6 +34,8 @@ export const MovieDetails = memo(function MovieDetails({ media, mediaId }: Movie
                 <SectionDivider label="Cast & Crew" />
                 <PeopleSection mediaId={mediaId} type="movies" />
             </section>
+
+            <RelatedMediaSection mediaId={mediaId} type="movie" />
         </div>
     );
 });

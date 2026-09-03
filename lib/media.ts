@@ -378,6 +378,13 @@ export class MediaClient {
     }
 
     /**
+     * Get TMDB recommendations for a movie or show, supplemented by similar titles.
+     */
+    public async getRecommendations(id: string, type: MediaType, limit = 20): Promise<RankedMediaItem[]> {
+        return this.makeRequest<RankedMediaItem[]>(`/${type}s/${id}/recommendations?limit=${limit}`);
+    }
+
+    /**
      * Get movie by ID
      */
     public async getMovie(id: string): Promise<MediaDetails> {

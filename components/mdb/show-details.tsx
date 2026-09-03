@@ -6,13 +6,14 @@ import { ScrollCarousel } from "@/components/common/scroll-carousel";
 import { SectionDivider } from "@/components/section-divider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTMDBEpisodeGroupDetails, useTMDBSeriesEpisodeGroups } from "@/hooks/use-tmdb";
 import { useShowEpisodes, useShowSeasons } from "@/hooks/use-media";
+import { useTMDBEpisodeGroupDetails, useTMDBSeriesEpisodeGroups } from "@/hooks/use-tmdb";
+import type { MediaDetails, MediaEpisode, MediaImageSet, MediaSeason } from "@/lib/media";
 import type { TMDBEpisodeGroupEpisode } from "@/lib/tmdb";
-import type { MediaEpisode, MediaImageSet, MediaDetails, MediaSeason } from "@/lib/media";
 import { EpisodeCard } from "./episode-card";
 import { MediaHeader, MediaHeaderSkeleton } from "./media-header";
 import { PeopleSection } from "./people-section";
+import { RelatedMediaSection } from "./related-media-section";
 import { SeasonCard } from "./season-card";
 
 interface ShowDetailsProps {
@@ -328,6 +329,8 @@ export const ShowDetails = memo(function ShowDetails({ media, mediaId }: ShowDet
                 <SectionDivider label="Cast & Crew" />
                 <PeopleSection mediaId={mediaId} type="shows" />
             </section>
+
+            <RelatedMediaSection mediaId={mediaId} type="show" />
         </div>
     );
 });

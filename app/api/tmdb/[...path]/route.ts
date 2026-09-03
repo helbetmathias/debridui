@@ -6,18 +6,18 @@ import { userSettings } from "@/lib/db/schema";
 import type {
     CastAndCrew,
     MediaCrew,
+    MediaDetails,
     MediaEpisode,
     MediaImageSet,
-    MediaDetails,
-    RankedMediaItem,
     MediaPerson,
+    MediaSearchResult,
+    MediaSeason,
     PersonDetails,
     PersonMovieCredit,
     PersonMovieCredits,
     PersonShowCredit,
     PersonShowCredits,
-    MediaSearchResult,
-    MediaSeason,
+    RankedMediaItem,
 } from "@/lib/media";
 
 const TMDB_API_URL = "https://api.themoviedb.org/3";
@@ -337,6 +337,33 @@ async function mediaList(
     return response.results.slice(0, limit).map((item) => ({ [type]: normalizeMedia(item, type) }));
 }
 
+async function mediaRecommendations(
+    id: string,
+    type: "movie" | "show",
+    limit: number,
+    credential: TmdbCredential
+): Promise<RankedMediaItem[]> {
+    const tmdbId = await resolveMediaId(id, type, credential);
+    const namespace = type === "movie" ? "movie" : "tv";
+    const recommended = await tmdb<{ results: TmdbMedia[] }>(`/${namespace}/${tmdbId}/recommendations`, credential);
+    const combined = [...recommended.results];
+
+    if (combined.length < limit) {
+        const similar = await tmdb<{ results: TmdbMedia[] }>(`/${namespace}/${tmdbId}/similar`, credential);
+        combined.push(...similar.results);
+    }
+
+    const seen = new Set<number>([tmdbId]);
+    return combined
+        .filter((item) => {
+            if (seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+        })
+        .slice(0, limit)
+        .map((item) => ({ [type]: normalizeMedia(item, type) }));
+}
+
 function crewDepartment(department?: string): keyof MediaCrew {
     const normalized = department?.toLowerCase();
     if (normalized === "costume & make-up") return "costume & make-up";
@@ -493,6 +520,7 @@ async function handleMovies(path: string[], request: NextRequest, credential: Tm
         boxoffice: "/movie/now_playing",
     };
     if (lists[id]) return mediaList(lists[id], "movie", limit, credential);
+    if (subresource === "recommendations") return mediaRecommendations(id, "movie", limit, credential);
     if (subresource === "people") return mediaPeople(id, "movie", credential);
     return mediaDetails(id, "movie", credential);
 }
@@ -507,6 +535,7 @@ async function handleShows(path: string[], request: NextRequest, credential: Tmd
         anticipated: "/tv/on_the_air",
     };
     if (lists[id]) return mediaList(lists[id], "show", limit, credential);
+    if (subresource === "recommendations") return mediaRecommendations(id, "show", limit, credential);
     if (subresource === "people") return mediaPeople(id, "show", credential);
 
     const tmdbId = await resolveMediaId(id, "show", credential);

@@ -79,6 +79,15 @@ export const useBoxOfficeMovies = createMediaHook(
     CACHE_DURATION.STANDARD
 );
 
+export function useMediaRecommendations(id: string, type: "movie" | "show", enabled = true, limit = 20) {
+    return useQuery({
+        queryKey: ["tmdb", type, id, "recommendations", limit],
+        queryFn: () => mediaClient.getRecommendations(id, type, limit),
+        staleTime: CACHE_DURATION.LONG,
+        enabled: enabled && !!id,
+    });
+}
+
 // Details hooks
 export const useMovieDetails = createMediaHook(
     ["movie"],
