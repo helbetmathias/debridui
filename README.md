@@ -14,6 +14,20 @@ A modern debrid client for managing your files, discovering trending movies and 
 > [!IMPORTANT]
 > This project does not provide, host, or stream any content. DebridUI is a client interface that connects to third-party debrid service APIs to display authorized users' private files and content. [Read full disclaimer](DISCLAIMER.md).
 
+## About This Fork
+
+This is a customized fork of [viperadnan-git/debridui](https://github.com/viperadnan-git/debridui). It keeps the original DebridUI experience and regularly incorporates upstream improvements, while adding the following features:
+
+- **TMDB-first media discovery** - Discovery, search, metadata, cast, seasons, and episodes use TMDB through an authenticated server-side proxy. Both TMDB API keys and Read Access Tokens are supported.
+- **More Like This** - Movie and TV detail pages include lazy-loaded TMDB recommendations after Cast & Crew, with similar titles used as a fallback.
+- **Synced catalogue controls** - Every catalogue declared by an enabled Stremio addon can be shown or hidden from the dashboard. Preferences are saved per account, synchronized across devices, and hidden catalogues are not fetched.
+- **Addon capability overview** - The Addons page identifies whether each addon provides catalogues, streams, metadata, or subtitles.
+- **Local search history** - Recent searches stay in the current browser. Playback history and Continue Watching are omitted because external players cannot report reliable playback progress.
+- **Streamlined interface** - The duplicate dashboard welcome/search area was removed, the shortcut hint is Windows-friendly, and movie source results remain readable above artwork and gradients.
+- **Performance and reliability fixes** - TMDB images use appropriately sized variants and server caching, addon reordering is more robust, and media pages avoid unnecessary catalogue requests.
+
+Upstream features remain available, including multi-debrid accounts, Stremio addons, Quick Play, cache checks, and external-player support.
+
 ## Community Hosted Instances
 
 - [https://debridui.viperadnan.com](https://debridui.viperadnan.com) - Hosted by creator
@@ -68,7 +82,7 @@ Media discovery uses TMDB. Add an API key or API Read Access Token under **Setti
 
 ```bash
 # Clone the repository
-git clone https://github.com/viperadnan-git/debridui
+git clone https://github.com/helbetmathias/debridui
 cd debridui
 
 # Install dependencies
