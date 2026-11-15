@@ -117,6 +117,7 @@ export const PLAYER_PLATFORM_SUPPORT: Record<MediaPlayer, Platform[]> = {
     [MediaPlayer.INFUSE]: [Platform.IOS, Platform.MACOS],
     [MediaPlayer.VLC]: [Platform.ANDROID, Platform.IOS, Platform.MACOS, Platform.WINDOWS, Platform.LINUX],
     [MediaPlayer.MPV]: [Platform.MACOS, Platform.WINDOWS, Platform.LINUX],
+    [MediaPlayer.MPV_SIMKL]: [Platform.WINDOWS],
     [MediaPlayer.POTPLAYER]: [Platform.WINDOWS],
     [MediaPlayer.KODI]: [Platform.ANDROID, Platform.IOS, Platform.MACOS, Platform.WINDOWS, Platform.LINUX],
     [MediaPlayer.MX_PLAYER]: [Platform.ANDROID],
@@ -150,6 +151,8 @@ const PLAYER_URLS: Record<Exclude<MediaPlayer, MediaPlayer.BROWSER>, PlayerUrlGe
     [MediaPlayer.INFUSE]: (url) => `infuse://x-callback-url/play?url=${encodeURIComponent(url)}`,
     [MediaPlayer.VLC]: (url, fileName) => generateVlcUrl(url, fileName),
     [MediaPlayer.MPV]: (url) => `mpv://${encodeURIComponent(url)}`,
+    [MediaPlayer.MPV_SIMKL]: (url, fileName) =>
+        `debridui-mpv://play?v=1&url=${encodeURIComponent(url)}&title=${encodeURIComponent(fileName)}`,
     [MediaPlayer.POTPLAYER]: (url) => `potplayer://${encodeURIComponent(url)}`,
     [MediaPlayer.KODI]: (url) => `kodi://${encodeURIComponent(url)}`,
     [MediaPlayer.MX_PLAYER]: (url, fileName) => generateMxPlayerUrl(url, "com.mxtech.videoplayer.ad", fileName),

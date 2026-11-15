@@ -23,6 +23,7 @@ This is a customized fork of [viperadnan-git/debridui](https://github.com/vipera
 - **Synced catalogue controls** - Every catalogue declared by an enabled Stremio addon can be shown or hidden from the dashboard. Preferences are saved per account, synchronized across devices, and hidden catalogues are not fetched.
 - **Addon capability overview** - The Addons page identifies whether each addon provides catalogues, streams, metadata, or subtitles.
 - **Local search history** - Recent searches stay in the current browser. Playback history and Continue Watching are omitted because external players cannot report reliable playback progress.
+- **Optional Windows MPV / SIMKL bridge** - Readable movie/episode filenames for the existing SIMKL scrobbler, with a console-free launcher and unchanged normal MPV support. See [setup and limitations](docs/mpv-simkl-bridge.md).
 - **Streamlined interface** - The duplicate dashboard welcome/search area was removed, the shortcut hint is Windows-friendly, and movie source results remain readable above artwork and gradients.
 - **Performance and reliability fixes** - TMDB images use appropriately sized variants and server caching, addon reordering is more robust, and media pages avoid unnecessary catalogue requests.
 

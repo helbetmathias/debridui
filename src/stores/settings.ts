@@ -138,6 +138,11 @@ const settingsConfig: SettingsConfig = {
                 description: "macOS, Windows, Linux - Lightweight media player",
             },
             {
+                value: MediaPlayer.MPV_SIMKL,
+                label: "MPV (SIMKL bridge)",
+                description: "Windows - Readable stream filenames for SIMKL; requires the bridge helper",
+            },
+            {
                 value: MediaPlayer.IINA,
                 label: "IINA",
                 description: "macOS - Powerful media player for macOS",

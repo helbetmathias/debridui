@@ -131,7 +131,14 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
                 fileType: FileType.VIDEO,
             });
         } else {
-            openInPlayer({ url: source.url, fileName, player: mediaPlayer });
+            // Scrobblers need the title/year or episode number, not the source quality label.
+            const scrobbleTitle =
+                request.type === "movie" && request.media.year ? `${title} (${request.media.year})` : title;
+            openInPlayer({
+                url: source.url,
+                fileName: mediaPlayer === MediaPlayer.MPV_SIMKL ? scrobbleTitle : fileName,
+                player: mediaPlayer,
+            });
         }
     },
 

@@ -3,6 +3,20 @@ import { MediaPlayer } from "@/lib/schemas";
 import { Platform } from "@/types";
 
 const PLAYER_SETUP_INSTRUCTIONS: Partial<Record<MediaPlayer, (platform: Platform) => React.ReactNode>> = {
+    [MediaPlayer.MPV_SIMKL]: () => (
+        <>
+            Install the Windows MPV bridge helper before selecting this player. It supplies readable filenames to your
+            SIMKL scrobbler without changing normal MPV links. See the{" "}
+            <a
+                href="https://github.com/helbetmathias/debridui/blob/main/docs/mpv-simkl-bridge.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline underline-offset-4 hover:text-primary">
+                MPV bridge setup instructions
+            </a>
+            .
+        </>
+    ),
     [MediaPlayer.VLC]: (platform) => {
         if (platform === Platform.WINDOWS) {
             return (

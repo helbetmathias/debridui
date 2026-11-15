@@ -16,6 +16,7 @@ export enum MediaPlayer {
     INFUSE = "Infuse",
     VLC = "VLC",
     MPV = "MPV",
+    MPV_SIMKL = "MPV (SIMKL bridge)",
     POTPLAYER = "PotPlayer",
     KODI = "Kodi",
     MX_PLAYER = "MX Player",

@@ -42,6 +42,56 @@ function loader(mocks = {}) {
     return load;
 }
 
+test("MPV bridge is opt-in, preserves signed URLs, and formats clean movie/episode titles", () => {
+    const opened = [];
+    let selectedPlayer = "MPV";
+    const settings = { getState: () => ({ get: () => selectedPlayer }) };
+    const load = loader({ "@/stores/settings": { useSettingsStore: settings } });
+    const { MediaPlayer } = load("src/lib/schemas.ts");
+    const player = load("src/lib/media/player.ts");
+    const originalWindow = global.window;
+    global.window = { open: (...args) => opened.push(args) };
+    try {
+        const url = "https://example.invalid/video?signature=a%2Fb%26c&token=one+two#fragment";
+        player.openInPlayer({ url, fileName: "Movie (2026)" });
+        assert.equal(opened[0][0], `mpv://${encodeURIComponent(url)}`);
+        selectedPlayer = MediaPlayer.MPV_SIMKL;
+        player.openInPlayer({ url, fileName: 'Movie & "Secrets" (2026)' });
+        const link = new URL(opened[1][0]);
+        assert.equal(link.protocol, "debridui-mpv:");
+        assert.equal(link.searchParams.get("v"), "1");
+        assert.equal(link.searchParams.get("url"), url);
+        assert.equal(link.searchParams.get("title"), 'Movie & "Secrets" (2026)');
+        assert.equal(opened[1][1], "_self");
+        assert.equal(player.isSupportedPlayer(MediaPlayer.MPV_SIMKL, "Windows"), true);
+        assert.equal(player.isSupportedPlayer(MediaPlayer.MPV_SIMKL, "Android"), false);
+
+        const played = [];
+        const streaming = loader({
+            "@/stores/settings": { useSettingsStore: settings },
+            "@/lib/media/player": { openInPlayer: (args) => played.push(args) },
+            "@/features/addons/hooks/use-addons": {},
+            "@/features/preview/stores/preview": {},
+            "@/lib/query-client": {},
+        })("src/features/media/stores/streaming.ts").useStreamingStore;
+        const source = { url, resolution: "2160p", quality: "WEB-DL", size: "10 GB" };
+        streaming.getState().playSource(source, { type: "movie", media: { title: "Movie", year: 2026 } });
+        assert.equal(played.at(-1).fileName, "Movie (2026)");
+        streaming.getState().playSource(source, {
+            type: "show",
+            media: { title: "Silo", year: 2023 },
+            tvParams: { season: 1, episode: 2, title: "Truth" },
+        });
+        assert.equal(played.at(-1).fileName, "Silo S01E02 - Truth");
+        selectedPlayer = MediaPlayer.MPV;
+        streaming.getState().playSource(source, { type: "movie", media: { title: "Movie", year: 2026 } });
+        assert.equal(played.at(-1).fileName, "Movie [2160p WEB-DL 10 GB]");
+    } finally {
+        if (originalWindow === undefined) delete global.window;
+        else global.window = originalWindow;
+    }
+});
+
 test("plain and encrypted backups retain catalog visibility and reject a wrong password", async () => {
     const load = loader();
     const backup = load("src/features/settings/utils/backup.ts");
