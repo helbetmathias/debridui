@@ -3,6 +3,7 @@
 > **Audience:** AI assistants & developers | **Version:** 1.0
 > **Use this for:** Quick token lookups, copy-paste patterns, checklist verification
 > **Use [ui.md](./ui.md) for:** Deep dives, rationale, accessibility, full component specs
+> **Use [project-structure.md](./project-structure.md) for:** Where files go, import rules, naming
 
 ## Core Principles
 
@@ -378,7 +379,8 @@ isActive ? "scale-105" : "scale-100"
 
 **Before Starting:**
 
-- [ ] Check `components/ui/` for existing components
+- [ ] Check `src/components/ui/`, `src/components/` and the feature's `components/` for existing components
+- [ ] Place new files per [project-structure.md](./project-structure.md#where-does-this-go)
 - [ ] Use standard shadcn sizes (don't override)
 - [ ] Choose appropriate template
 

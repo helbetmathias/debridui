@@ -47,11 +47,14 @@ Before diving into specifics, follow these core principles to maintain consisten
 
 Always search existing components before creating new ones:
 
-- `components/ui/` — Primitives (Button, Badge, Skeleton, Dialog, Input)
-- `components/common/` — Utilities (wrappers, loaders, shared patterns)
-- `components/[feature]/` — Domain-specific patterns
+- `src/components/ui/` — Primitives (Button, Badge, Skeleton, Dialog, Input)
+- `src/components/` — Shared components (dialogs, selection bar, pagination, layout pieces)
+- `src/features/[feature]/components/` — Domain-specific patterns
+- `src/app/[route]/_components/` — Sections used by a single page
 
-**IMPORTANT:** Before implementing any new UI, read the existing `components/ui/` files. All shadcn components have been pre-styled with the editorial minimalist aesthetic — `rounded-sm`, `border-border/50`, `font-light`, `duration-300`, etc. are already baked in. Don't add redundant class overrides.
+Placement rules: [project-structure.md](./project-structure.md).
+
+**IMPORTANT:** Before implementing any new UI, read the existing `src/components/ui/` files. All shadcn components have been pre-styled with the editorial minimalist aesthetic — `rounded-sm`, `border-border/50`, `font-light`, `duration-300`, etc. are already baked in. Don't add redundant class overrides.
 
 ### 2. Compose, Don't Duplicate
 
@@ -101,17 +104,19 @@ Use design tokens consistently:
 
 ### 6. Place Components Correctly
 
-| Scope                    | Location                                 |
-| ------------------------ | ---------------------------------------- |
-| Generic, reusable        | `components/ui/` or `components/common/` |
-| Domain-specific          | `components/[feature]/`                  |
-| Used once, page-specific | Colocate in `app/[route]/`               |
+| Scope                    | Location                                  |
+| ------------------------ | ----------------------------------------- |
+| Generic, reusable        | `src/components/ui/` or `src/components/` |
+| Domain-specific          | `src/features/[feature]/components/`      |
+| Used once, page-specific | `src/app/[route]/_components/`            |
+
+See [project-structure.md](./project-structure.md#where-does-this-go) for the full placement rules.
 
 ---
 
 ## Pre-Styled shadcn/ui Components
 
-All base UI primitives in `components/ui/` have been customized for the editorial minimalist aesthetic. **Always build upon these components** — they include the design system tokens so you don't need to re-apply them.
+All base UI primitives in `src/components/ui/` have been customized for the editorial minimalist aesthetic. **Always build upon these components** — they include the design system tokens so you don't need to re-apply them.
 
 ### What's Already Baked In
 
@@ -159,7 +164,7 @@ Only add classes for:
 
 Before creating any UI:
 
-1. Check if a shadcn component exists in `components/ui/`
+1. Check if a shadcn component exists in `src/components/ui/`
 2. Read the component file to understand its pre-baked styles
 3. Compose existing components rather than building from scratch
 4. Only add className overrides for truly custom behavior
@@ -444,10 +449,10 @@ Before writing code, answer these questions:
 
 ```
 1. Does a shadcn/ui component already exist?
-   → Yes: Use it directly from components/ui/
+   → Yes: Use it directly from src/components/ui/
    → No: Continue to step 2
 
-2. Does a custom component exist in components/common/ or components/[feature]/?
+2. Does a custom component exist in src/components/ or src/features/[feature]/components/?
    → Yes: Compose with it
    → No: Continue to step 3
 
@@ -1801,7 +1806,7 @@ export const Component = memo(function Component(props) { ... });
 
 ```tsx
 const HeavyComponent = dynamic(
-    () => import("@/components/feature/heavy-component").then((m) => ({ default: m.HeavyComponent })),
+    () => import("@/features/feature/components/heavy-component").then((m) => ({ default: m.HeavyComponent })),
     { loading: () => <Skeleton className="h-64" /> }
 );
 ```
@@ -1869,56 +1874,9 @@ When creating new components, ensure:
 
 ---
 
-## 10. Recommended Project Structure
+## 10. Project Structure
 
-### Directory Organization
-
-```
-app/
-├── globals.css                 # Theme tokens, CSS variables, base styles
-├── (public)/                   # Public routes (no auth required)
-│   └── ...
-├── (auth)/                     # Authenticated routes (require login)
-│   └── (app)/                  # Routes with main layout
-│       └── ...
-└── api/                        # API routes
-
-components/
-├── ui/                         # Base UI primitives (shadcn/ui)
-├── common/                     # Shared utility components
-└── [feature]/                  # Feature-specific components
-
-hooks/                          # Custom React hooks
-
-lib/
-├── actions/                    # Server actions
-├── stores/                     # State management
-└── utils/                      # Utility functions
-
-public/
-└── fonts/                      # Custom font files
-
-docs/                           # Documentation
-```
-
-### Component Categories
-
-| Category      | Location             | Purpose                                                            |
-| ------------- | -------------------- | ------------------------------------------------------------------ |
-| UI Primitives | `components/ui/`     | Base building blocks — buttons, badges, inputs, dialogs, skeletons |
-| Common        | `components/common/` | Shared utilities — carousels, loaders, wrappers                    |
-| Feature       | `components/[name]/` | Domain-specific components for each feature area                   |
-
-### Naming Conventions
-
-| Type           | Convention                  | Example                                |
-| -------------- | --------------------------- | -------------------------------------- |
-| Components     | PascalCase                  | `ContentCard`, `HeroSection`           |
-| Files          | kebab-case                  | `content-card.tsx`, `hero-section.tsx` |
-| Hooks          | camelCase with `use` prefix | `useData`, `useFeature`                |
-| CSS Variables  | kebab-case with `--` prefix | `--muted-foreground`, `--border`       |
-| Server Actions | camelCase                   | `createItem`, `deleteRecord`           |
-| Utilities      | camelCase                   | `formatDate`, `getImageUrl`            |
+Where components, hooks and other code belong — feature folders, route-local `_components/`, import rules and naming — is defined in [project-structure.md](./project-structure.md). It links to the Next.js, bulletproof-react and shadcn/ui references it follows.
 
 ---
 

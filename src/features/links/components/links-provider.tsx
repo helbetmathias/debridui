@@ -1,0 +1,200 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { useAuthGuaranteed } from "@/features/auth/components/auth-provider";
+import { WEB_DOWNLOADS_PAGE_SIZE } from "@/lib/constants";
+import type { WebDownload, WebDownloadAddResult } from "@/lib/debrid/types";
+
+interface LinksContextValue {
+    downloads: WebDownload[];
+    isLoading: boolean;
+    isRefetching: boolean;
+    currentPage: number;
+    totalPages: number;
+    setPage: (page: number) => void;
+    addDownloads: (links: string[]) => Promise<WebDownloadAddResult[]>;
+    isAdding: boolean;
+    saveLinks: ((links: string[]) => Promise<void>) | null;
+    isSaving: boolean;
+    deleteDownload: (id: string) => Promise<unknown>;
+    retryDownload: (download: WebDownload) => Promise<void>;
+    setAirlocked: ((params: { id: string; airlocked: boolean }) => Promise<unknown>) | null;
+    getDownloadLink: (download: WebDownload) => Promise<string>;
+    refetch: () => void;
+}
+
+const LinksContext = createContext<LinksContextValue | null>(null);
+
+export function LinksProvider({ children }: { children: ReactNode }) {
+    const { client, currentAccount } = useAuthGuaranteed();
+    const queryClient = useQueryClient();
+    const [currentPage, setCurrentPage] = useState(1);
+
+    // Ephemeral state for clients that support it (unlocked links not saved to API)
+    const [ephemeralLinks, setEphemeralLinks] = useState<WebDownload[]>([]);
+
+    const offset = (currentPage - 1) * WEB_DOWNLOADS_PAGE_SIZE;
+    const listKey = [currentAccount.id, "webDownloads", "list", currentPage] as const;
+
+    const listQuery = useQuery({
+        queryKey: listKey,
+        queryFn: () => client.getWebDownloadList({ offset, limit: WEB_DOWNLOADS_PAGE_SIZE }),
+        refetchInterval: client.refreshInterval,
+    });
+
+    // Merge API list with ephemeral links (if client supports them)
+    const downloads = useMemo(() => {
+        const apiDownloads = listQuery.data?.downloads ?? [];
+        if (!client.supportsEphemeralLinks) return apiDownloads;
+        // Only show ephemeral links on first page
+        if (currentPage !== 1) return apiDownloads;
+        const apiIds = new Set(apiDownloads.map((d) => d.id));
+        return [...ephemeralLinks.filter((d) => !apiIds.has(d.id)), ...apiDownloads];
+    }, [client.supportsEphemeralLinks, ephemeralLinks, listQuery.data, currentPage]);
+
+    // Calculate total pages (same pattern as useFileExplorer)
+    const totalPages = useMemo(() => {
+        const data = listQuery.data;
+        if (!data) return currentPage + 1;
+
+        if (data.total !== undefined) {
+            return Math.ceil(data.total / WEB_DOWNLOADS_PAGE_SIZE);
+        }
+
+        if (!data.hasMore) {
+            return Math.ceil((offset + data.downloads.length) / WEB_DOWNLOADS_PAGE_SIZE);
+        }
+
+        return currentPage + 1;
+    }, [listQuery.data, offset, currentPage]);
+
+    const setPage = useCallback((page: number) => {
+        setCurrentPage(Math.max(1, page));
+    }, []);
+
+    // Add/Unlock links
+    const addMutation = useMutation({
+        mutationFn: (links: string[]) => client.addWebDownloads(links),
+        onSuccess: (results) => {
+            if (client.supportsEphemeralLinks) {
+                // Store unlocked links in ephemeral state
+                const newLinks: WebDownload[] = [];
+                for (const r of results) {
+                    if (r.success) {
+                        newLinks.push({
+                            id: crypto.randomUUID(),
+                            name: r.name || r.link.split("/").pop() || r.link,
+                            originalLink: r.link,
+                            downloadLink: r.downloadLink,
+                            size: r.size,
+                            status: "completed" as const,
+                            createdAt: new Date(),
+                        });
+                    }
+                }
+                if (newLinks.length > 0) {
+                    setEphemeralLinks((prev) => [...newLinks, ...prev]);
+                }
+            }
+            // Invalidate all pages
+            queryClient.invalidateQueries({ queryKey: [currentAccount.id, "webDownloads", "list"] });
+        },
+    });
+
+    // Save links (optional, client-dependent)
+    const saveMutation = useMutation({
+        mutationFn: async (links: string[]) => {
+            await client.saveWebDownloadLinks?.(links);
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: [currentAccount.id, "webDownloads", "list"] }),
+    });
+
+    // Delete
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            if (client.supportsEphemeralLinks) {
+                const isEphemeral = ephemeralLinks.some((d) => d.id === id);
+                if (isEphemeral) {
+                    setEphemeralLinks((prev) => prev.filter((d) => d.id !== id));
+                    return;
+                }
+            }
+            await client.deleteWebDownload(id);
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: [currentAccount.id, "webDownloads", "list"] }),
+    });
+
+    // No provider exposes a retry op (TorBox webdl only accepts "delete"), so re-add the original link
+    const retryMutation = useMutation({
+        mutationFn: async (download: WebDownload) => {
+            const [result] = await client.addWebDownloads([download.originalLink]);
+            if (!result?.success) throw new Error(result?.error || "Failed to retry");
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: [currentAccount.id, "webDownloads", "list"] }),
+    });
+
+    // Airlock (TorBox only) - keeps a cached download from being removed for inactivity
+    const airlockMutation = useMutation({
+        mutationFn: ({ id, airlocked }: { id: string; airlocked: boolean }) =>
+            client.setAirlocked?.({ id, target: "webdl", airlocked }) ?? Promise.resolve(),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: [currentAccount.id, "webDownloads", "list"] }),
+    });
+
+    const value = useMemo(
+        () => ({
+            downloads,
+            isLoading: listQuery.isLoading,
+            isRefetching: listQuery.isRefetching,
+            currentPage,
+            totalPages,
+            setPage,
+            addDownloads: addMutation.mutateAsync,
+            isAdding: addMutation.isPending,
+            saveLinks: client.saveWebDownloadLinks ? saveMutation.mutateAsync : null,
+            isSaving: saveMutation.isPending,
+            deleteDownload: deleteMutation.mutateAsync,
+            retryDownload: retryMutation.mutateAsync,
+            setAirlocked: client.setAirlocked ? airlockMutation.mutateAsync : null,
+            getDownloadLink: async (download: WebDownload): Promise<string> => {
+                // Use cached downloadLink if available
+                if (download.downloadLink) {
+                    return download.downloadLink;
+                }
+                // For clients with ephemeral links, saved links need unlocking
+                if (client.supportsEphemeralLinks) {
+                    const results = await client.addWebDownloads([download.originalLink]);
+                    const result = results[0];
+                    if (!result?.success || !result.downloadLink) {
+                        throw new Error(result?.error || "Failed to unlock link");
+                    }
+                    return result.downloadLink;
+                }
+                // Fallback - shouldn't reach here for ready downloads
+                throw new Error("Download link not available");
+            },
+            refetch: listQuery.refetch,
+        }),
+        [
+            downloads,
+            listQuery,
+            currentPage,
+            totalPages,
+            setPage,
+            addMutation,
+            saveMutation,
+            deleteMutation,
+            retryMutation,
+            airlockMutation,
+            client,
+        ]
+    );
+
+    return <LinksContext.Provider value={value}>{children}</LinksContext.Provider>;
+}
+
+export function useLinks() {
+    const context = useContext(LinksContext);
+    if (!context) throw new Error("useLinks must be used within LinksProvider");
+    return context;
+}

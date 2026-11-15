@@ -1,0 +1,32 @@
+"use client";
+
+import { AlertCircle } from "lucide-react";
+import { getPreviewRenderer } from "@/features/preview/utils/registry";
+import type { DebridFileNode } from "@/lib/debrid/types";
+import { getFileType } from "@/lib/utils";
+import type { FileType } from "@/types";
+
+interface PreviewContentProps {
+    file: DebridFileNode;
+    downloadUrl: string;
+    /** Override auto-detected file type */
+    fileType?: FileType;
+}
+
+export function PreviewContent({ file, downloadUrl, fileType: explicitFileType }: PreviewContentProps) {
+    const fileType = explicitFileType ?? getFileType(file.name);
+    const renderer = getPreviewRenderer(fileType);
+
+    if (!renderer) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mb-2" />
+                <p className="text-sm">Preview not available for this file type</p>
+                <p className="text-xs mt-1 text-muted-foreground/70">{file.name}</p>
+            </div>
+        );
+    }
+
+    const RendererComponent = renderer.component;
+    return <RendererComponent key={file.id} file={file} downloadUrl={downloadUrl} />;
+}
