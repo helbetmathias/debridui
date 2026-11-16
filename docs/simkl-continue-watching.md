@@ -2,9 +2,10 @@
 
 ## What this adds
 
-- A smaller dashboard hero. Choose **up to two** sources using the **Hero** checkboxes beside existing catalogue visibility controls in **Addons → Dashboard Catalogs**. Popular movies and series from Cinemeta are the defaults. Sources alternate, with duplicate titles removed. Uncheck both to hide the hero.
+- An adaptive dashboard hero: the original full-size banner when there is no saved Continue Watching content, and a moderately shorter, wider-framed desktop banner when that row has items. The phone banner and playback cards become compact in that state. Choose **up to two** sources using the **Hero** checkboxes beside existing catalogue visibility controls in **Addons → Dashboard Catalogs**. Popular movies and series from Cinemeta are the defaults. Sources alternate, with duplicate titles removed. Uncheck both to hide the hero.
 - Hero selection is independent of whether the catalogue row is visible, and is saved to your DebridUI account alongside catalogue preferences. Disabled addons cannot supply hero items. An unavailable source is skipped rather than blocking other sources.
 - A **Continue Watching** row between the hero and catalogues, populated from your account's real saved SIMKL playbacks. Landscape cards show the saved percentage and episode. Movie time remaining is an estimate based on TMDB runtime, not a measured player position.
+- On phones, the Resume play button sits on the artwork to keep cards short; the full Resume button remains on desktop. Navigation arrows disappear when the row does not overflow. Normal playback does not add explanatory copy below the row; refresh failures still show a short stale-data notice.
 - **Settings → Streaming → SIMKL** connects or disconnects the account. It is not a second DebridUI sign-in method.
 
 ## Server setup

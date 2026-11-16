@@ -8,6 +8,95 @@ const ts = require("typescript");
 const root = path.resolve(__dirname, "..");
 const nativeRequire = createRequire(path.join(root, "package.json"));
 
+test("dashboard uses the full hero without saved playbacks and a compact layout only with real progress", () => {
+    const React = nativeRequire("react");
+    const { renderToStaticMarkup } = nativeRequire("react-dom/server");
+    let data;
+    const Hero = ({ compact }) => React.createElement("div", { "data-compact": String(compact) });
+    const Dashboard = loader({
+        "next/dynamic": { default: () => Hero },
+        "@/features/media/hooks/use-simkl": { useSimklPlayback: () => ({ data }) },
+        "@/features/media/components/hero-carousel-skeleton": { HeroCarouselSkeleton: () => null },
+        "@/features/media/components/continue-watching": { ContinueWatching: () => null },
+        "@/features/media/components/media-footer": { MediaFooter: () => null },
+        "./_components/addon-catalogs": { AddonCatalogs: () => null },
+    })("src/app/(auth)/(app)/dashboard/page.tsx").default;
+    for (const value of [
+        undefined,
+        { connected: false, items: [] },
+        { connected: true, items: [] },
+        { connected: false, items: [{ id: "old" }] },
+    ]) {
+        data = value;
+        assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="false"/);
+    }
+    data = { connected: true, items: [{ id: "saved" }] };
+    assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="true"/);
+});
+
+test("Continue Watching removes normal explanatory copy but retains refresh failure feedback", () => {
+    const React = nativeRequire("react");
+    const { renderToStaticMarkup } = nativeRequire("react-dom/server");
+    let stale = false;
+    const ContinueWatching = loader({
+        "embla-carousel-react": { default: () => [() => {}, undefined] },
+        "@/features/media/hooks/use-simkl": {
+            useSimklPlayback: () => ({
+                data: { connected: true, items: [{ id: "saved" }], stale },
+                isLoading: false,
+                refetch: () => {},
+            }),
+        },
+        "./continue-watching-card": { ContinueWatchingCard: () => React.createElement("p", null, "Saved movie") },
+    })("src/features/media/components/continue-watching.tsx").ContinueWatching;
+    const render = () => renderToStaticMarkup(React.createElement(ContinueWatching));
+    const regular = render();
+    assert.doesNotMatch(regular, /Saved progress from your connected scrobblers|Resume selects a fresh source/);
+    assert.match(regular, /basis-\[208px\]/);
+    assert.match(regular, /disabled:hidden/);
+    stale = true;
+    assert.match(render(), /Could not refresh SIMKL; showing saved progress/);
+});
+
+test("compact playback cards keep movie/episode source requests unchanged and label mobile Resume", () => {
+    const React = nativeRequire("react");
+    const { renderToStaticMarkup } = nativeRequire("react-dom/server");
+    const requests = [];
+    const Card = loader({
+        "@tanstack/react-query": { ...nativeRequire("@tanstack/react-query"), useQuery: () => ({ data: undefined }) },
+        "next/link": { default: ({ children, ...props }) => React.createElement("a", props, children) },
+        "./watch-button": {
+            WatchButton: ({ request, children }) => {
+                requests.push(request);
+                return children;
+            },
+        },
+    })("src/features/media/components/continue-watching-card.tsx").ContinueWatchingCard;
+    const episode = {
+        id: "saved",
+        type: "show",
+        title: "Silo",
+        imdbId: "tt14688458",
+        progress: 35,
+        pausedAt: "2026-11-16T12:00:00Z",
+        episode: { season: 1, number: 2, title: "Truth" },
+    };
+    const markup = renderToStaticMarkup(React.createElement(Card, { item: episode }));
+    assert.match(markup, /aria-label="Resume Silo"/);
+    assert.match(markup, /35% watched/);
+    assert.match(markup, /sm:hidden/);
+    assert.match(markup, /hidden sm:flex/);
+    assert.equal(requests.length, 2);
+    for (const request of requests) {
+        assert.equal(request.imdbId, episode.imdbId);
+        assert.equal(request.type, "show");
+        assert.deepEqual(request.tvParams, { season: 1, episode: 2, title: "Truth" });
+    }
+    requests.length = 0;
+    renderToStaticMarkup(React.createElement(Card, { item: { ...episode, episodeMapped: false } }));
+    assert.equal(requests.length, 0);
+});
+
 test("targeted SIMKL migration verifies its schema and never replays historical cleanup", async () => {
     const { applySimklMigration } = require("../scripts/apply-simkl-migration.cjs");
     const migration = {

@@ -19,9 +19,10 @@ interface HeroSlideProps {
     index: number;
     total: number;
     isActive: boolean;
+    compact: boolean;
 }
 
-const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: HeroSlideProps) {
+const HeroSlide = memo(function HeroSlide({ item, index, total, isActive, compact }: HeroSlideProps) {
     const media = item.movie || item.show;
     const type = item.movie ? "movie" : "show";
     if (!media) return null;
@@ -31,7 +32,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
     const placeholderImage = `https://placehold.co/1920x1080/1a1a1a/3e3e3e?text=${encodeURIComponent(media.title)}`;
 
     const desktopImage = fanartImage || placeholderImage;
-    const mobileImage = posterImage || fanartImage || placeholderImage;
+    const mobileImage = (compact ? fanartImage || posterImage : posterImage || fanartImage) || placeholderImage;
 
     const slug = media.ids?.slug || media.ids?.imdb;
     const linkHref = slug ? `/${type}s/${slug}` : "#";
@@ -41,12 +42,16 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
     return (
         <div className="relative w-full">
             {/* Desktop Layout */}
-            <div className="hidden md:block relative w-full h-[clamp(360px,48vh,560px)] overflow-hidden">
+            <div
+                className={cn(
+                    "hidden md:block relative w-full overflow-hidden",
+                    compact ? "aspect-[5/2] min-h-[360px] max-h-[900px]" : "aspect-2/1"
+                )}>
                 {/* Background Image with Ken Burns effect */}
                 <div
                     className={cn(
                         "absolute inset-0 transition-transform duration-8000 ease-out",
-                        isActive ? "scale-105" : "scale-100"
+                        isActive ? "scale-[1.02]" : "scale-100"
                     )}>
                     <img
                         src={desktopImage}
@@ -91,7 +96,11 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
                             </div>
 
                             {/* Title */}
-                            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-light leading-tightest tracking-tight line-clamp-2">
+                            <h1
+                                className={cn(
+                                    "font-light leading-tightest tracking-tight line-clamp-2",
+                                    compact ? "text-3xl lg:text-4xl xl:text-5xl" : "text-4xl lg:text-5xl xl:text-6xl"
+                                )}>
                                 {media.title}
                             </h1>
 
@@ -173,7 +182,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
             </div>
 
             {/* Mobile Layout */}
-            <div className="md:hidden relative w-full h-[360px] overflow-hidden">
+            <div className={cn("md:hidden relative w-full overflow-hidden", compact ? "h-[320px]" : "aspect-9/14")}>
                 {/* Background */}
                 <div
                     className={cn(
@@ -212,15 +221,18 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
                 </div>
 
                 {/* Bottom content */}
-                <div className="absolute inset-x-0 bottom-0 p-4 pb-14">
+                <div className={cn("absolute inset-x-0 bottom-0 p-4", compact ? "pb-12" : "pb-14")}>
                     <div
                         className={cn(
-                            "space-y-3 transition-all duration-500",
+                            "transition-all duration-500",
+                            compact ? "space-y-2" : "space-y-3",
                             isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                         )}
                         style={{ transitionDelay: isActive ? "200ms" : "0ms" }}>
                         {/* Title */}
-                        <h2 className="text-2xl font-light leading-tight line-clamp-2">{media.title}</h2>
+                        <h1 className={cn("font-light leading-tight line-clamp-2", compact ? "text-xl" : "text-2xl")}>
+                            {media.title}
+                        </h1>
 
                         {/* Meta */}
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -244,7 +256,11 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
 
                         {/* Overview */}
                         {media.overview && (
-                            <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                            <p
+                                className={cn(
+                                    "text-sm text-muted-foreground leading-relaxed",
+                                    compact ? "line-clamp-1" : "line-clamp-2"
+                                )}>
                                 {media.overview}
                             </p>
                         )}
@@ -284,9 +300,10 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
 
 interface HeroCarouselProps {
     autoFocus?: boolean;
+    compact?: boolean;
 }
 
-export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: HeroCarouselProps) {
+export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false, compact = false }: HeroCarouselProps) {
     const carouselRef = useRef<HTMLDivElement>(null);
     const [api, setApi] = useState<CarouselApi>();
     const [current, setCurrent] = useState(0);
@@ -337,7 +354,7 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
     }, [api, autoplay, isLoading, autoFocus]);
 
     if (isLoading) {
-        return <HeroCarouselSkeleton />;
+        return <HeroCarouselSkeleton compact={compact} />;
     }
 
     if (!mixed || mixed.length === 0) {
@@ -345,7 +362,7 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
     }
 
     return (
-        <div className="-mx-4 -mt-6 lg:-mx-6 relative group/hero">
+        <div className="-mx-4 -mt-6 lg:-mx-6 relative group/hero" data-hero-layout={compact ? "with-progress" : "full"}>
             <Carousel
                 ref={carouselRef}
                 tabIndex={0}
@@ -361,7 +378,13 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
                         <CarouselItem
                             key={`${item.movie ? "movie" : "show"}:${(item.movie ?? item.show)?.ids?.imdb ?? (item.movie ?? item.show)?.ids?.slug ?? index}`}
                             className="pl-0">
-                            <HeroSlide item={item} index={index} total={mixed.length} isActive={index === current} />
+                            <HeroSlide
+                                item={item}
+                                index={index}
+                                total={mixed.length}
+                                isActive={index === current}
+                                compact={compact}
+                            />
                         </CarouselItem>
                     ))}
                 </CarouselContent>

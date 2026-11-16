@@ -24,7 +24,7 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
     const episode = item.episode;
     const episodeLabel = episode
         ? `S${String(episode.season).padStart(2, "0")} E${String(episode.number).padStart(2, "0")}`
-        : item.year;
+        : "";
     // Movie runtime is approximate; a show's overall runtime is not an episode runtime.
     const remaining =
         item.type === "movie" && detail?.runtime ? Math.ceil((detail.runtime * (100 - item.progress)) / 100) : null;
@@ -32,6 +32,13 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
         ? `/${item.type}s/${id}${episode ? `?season=${episode.season}#episode-${episode.number}` : ""}`
         : null;
     const progressLabel = `${Math.round(item.progress)}%`;
+    const canResume = !!imdbId && item.episodeMapped !== false;
+    const request = {
+        imdbId: imdbId ?? "",
+        type: item.type,
+        media,
+        ...(episode ? { tvParams: { season: episode.season, episode: episode.number, title: episode.title } } : {}),
+    };
     const image = (
         <div className="relative aspect-video bg-muted/30 overflow-hidden">
             {art ? (
@@ -44,24 +51,39 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
             ) : (
                 <Film className="absolute inset-0 m-auto size-8 text-muted-foreground" />
             )}
-            <span className="absolute bottom-2 left-2 rounded-sm bg-background/85 px-2 py-1 text-xs tabular-nums">
-                {episodeLabel ?? "Movie"}
-            </span>
+            {episode && (
+                <span className="absolute bottom-2 left-2 rounded-sm bg-background/85 px-2 py-1 text-xs tabular-nums">
+                    {episodeLabel}
+                </span>
+            )}
         </div>
     );
     return (
         <article className="group overflow-hidden rounded-sm border border-border/50 bg-muted/10">
-            {detailHref ? (
-                <Link
-                    href={detailHref}
-                    aria-label={`Details for ${item.title}`}
-                    className="block focus-visible:outline-2 focus-visible:outline-primary">
-                    {image}
-                </Link>
-            ) : (
-                image
-            )}
-            <div className="p-3 space-y-2.5">
+            <div className="relative">
+                {detailHref ? (
+                    <Link
+                        href={detailHref}
+                        aria-label={`Details for ${item.title}`}
+                        className="block focus-visible:outline-2 focus-visible:outline-primary">
+                        {image}
+                    </Link>
+                ) : (
+                    image
+                )}
+                {canResume && (
+                    <WatchButton request={request}>
+                        <Button
+                            size="icon"
+                            variant="outline"
+                            aria-label={`Resume ${item.title}`}
+                            className="sm:hidden absolute bottom-2 right-2 rounded-full bg-background/90 after:absolute after:-inset-1">
+                            <Play className="size-4 fill-current" />
+                        </Button>
+                    </WatchButton>
+                )}
+            </div>
+            <div className="p-2.5 sm:p-3 space-y-2 sm:space-y-2.5">
                 <div>
                     <h3 className="truncate text-sm font-medium" title={item.title}>
                         {item.title}
@@ -80,23 +102,13 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
                     <span>{progressLabel} watched</span>
                     {remaining !== null && <span>~{remaining} min left</span>}
                 </div>
-                {imdbId && item.episodeMapped !== false ? (
-                    <WatchButton
-                        request={{
-                            imdbId,
-                            type: item.type,
-                            media,
-                            ...(episode
-                                ? {
-                                      tvParams: {
-                                          season: episode.season,
-                                          episode: episode.number,
-                                          title: episode.title,
-                                      },
-                                  }
-                                : {}),
-                        }}>
-                        <Button size="sm" variant="outline" className="w-full gap-2">
+                {canResume ? (
+                    <WatchButton request={request}>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="hidden sm:flex w-full gap-2"
+                            aria-label={`Resume ${item.title}`}>
                             <Play className="size-3 fill-current" />
                             Resume
                         </Button>

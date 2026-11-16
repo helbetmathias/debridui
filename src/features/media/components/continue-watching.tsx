@@ -12,9 +12,9 @@ export function ContinueWatching() {
     const { data, isLoading, isFetching, error, refetch } = useSimklPlayback();
     if (!isLoading && !error && !data?.connected && !data?.reconnectRequired) return null;
     return (
-        <section aria-labelledby="continue-watching-heading" className="pt-6 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-                <h2 id="continue-watching-heading" className="text-sm tracking-widest uppercase">
+        <section aria-labelledby="continue-watching-heading" className="pt-4 sm:pt-6 space-y-3 sm:space-y-4">
+            <div className="flex min-h-11 sm:min-h-9 items-center justify-between gap-3">
+                <h2 id="continue-watching-heading" className="text-xs sm:text-sm tracking-widest uppercase">
                     Continue Watching
                 </h2>
                 <div className="flex items-center gap-2">
@@ -22,7 +22,7 @@ export function ContinueWatching() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="size-9"
+                        className="relative after:absolute after:-inset-1 sm:after:hidden"
                         aria-label="Refresh Continue Watching"
                         disabled={isFetching}
                         onClick={() => refetch()}>
@@ -35,8 +35,8 @@ export function ContinueWatching() {
                     <p className="sr-only" role="status">
                         Loading saved progress
                     </p>
-                    <Skeleton className="h-60 w-64 shrink-0" />
-                    <Skeleton className="h-60 w-64 shrink-0" />
+                    <Skeleton className="h-52 w-52 sm:h-72 sm:w-68 shrink-0" />
+                    <Skeleton className="h-52 w-52 sm:h-72 sm:w-68 shrink-0" />
                 </div>
             ) : data?.reconnectRequired ? (
                 <p className="text-sm text-muted-foreground">
@@ -54,13 +54,13 @@ export function ContinueWatching() {
                 <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
                     <CarouselContent className="-ml-3">
                         {data.items.map((item) => (
-                            <CarouselItem key={item.id} className="pl-3 basis-[240px] sm:basis-[280px]">
+                            <CarouselItem key={item.id} className="pl-3 basis-[208px] sm:basis-[280px]">
                                 <ContinueWatchingCard item={item} />
                             </CarouselItem>
                         ))}
                     </CarouselContent>
-                    <CarouselPrevious className="left-1 top-[75px] size-9 bg-background/90" />
-                    <CarouselNext className="right-1 top-[75px] size-9 bg-background/90" />
+                    <CarouselPrevious className="left-1 top-[58px] sm:top-[75px] size-9 bg-background/90 disabled:hidden after:absolute after:-inset-1 sm:after:hidden" />
+                    <CarouselNext className="right-1 top-[58px] sm:top-[75px] size-9 bg-background/90 disabled:hidden after:absolute after:-inset-1 sm:after:hidden" />
                 </Carousel>
             ) : (
                 <p className="text-sm text-muted-foreground">
@@ -69,12 +69,9 @@ export function ContinueWatching() {
                         : "No saved playback yet. Pause or stop a title in your connected scrobbler to see it here."}
                 </p>
             )}
-            {(data?.items.length ?? 0) > 0 && (
-                <p className="text-xs text-muted-foreground">
-                    {data?.stale || error
-                        ? "Showing saved progress; SIMKL could not refresh just now. "
-                        : "Saved progress from your connected scrobblers. "}
-                    Resume selects a fresh source; your player’s SIMKL integration restores the position.
+            {(data?.items.length ?? 0) > 0 && (data?.stale || error) && (
+                <p className="text-xs text-muted-foreground" role="status">
+                    Could not refresh SIMKL; showing saved progress.
                 </p>
             )}
         </section>

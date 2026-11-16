@@ -2,12 +2,17 @@
 
 import { memo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton() {
+export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton({ compact = false }: { compact?: boolean }) {
     return (
         <div className="-mx-4 -mt-6 lg:-mx-6 relative">
             {/* Desktop skeleton */}
-            <div className="hidden md:block relative w-full h-[clamp(360px,48vh,560px)] overflow-hidden">
+            <div
+                className={cn(
+                    "hidden md:block relative w-full overflow-hidden",
+                    compact ? "aspect-[5/2] min-h-[360px] max-h-[900px]" : "aspect-2/1"
+                )}>
                 <Skeleton className="absolute inset-0 rounded-none" />
 
                 {/* Gradient overlays for depth */}
@@ -55,7 +60,7 @@ export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton() {
             </div>
 
             {/* Mobile skeleton */}
-            <div className="md:hidden relative w-full h-[360px] overflow-hidden">
+            <div className={cn("md:hidden relative w-full overflow-hidden", compact ? "h-[320px]" : "aspect-9/14")}>
                 <Skeleton className="absolute inset-0 rounded-none" />
 
                 {/* Gradient overlays */}
