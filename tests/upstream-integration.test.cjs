@@ -8,6 +8,34 @@ const ts = require("typescript");
 const root = path.resolve(__dirname, "..");
 const nativeRequire = createRequire(path.join(root, "package.json"));
 
+test("hero artwork stays static on desktop and mobile in both full and compact layouts", () => {
+    const React = nativeRequire("react");
+    const { renderToStaticMarkup } = nativeRequire("react-dom/server");
+    const Hero = loader({
+        "embla-carousel-react": { default: () => [() => {}, undefined] },
+        "embla-carousel-autoplay": { default: () => ({ play: () => {} }) },
+        "embla-carousel-wheel-gestures": { WheelGesturesPlugin: () => ({}) },
+        "next/link": { default: ({ children, ...props }) => React.createElement("a", props, children) },
+        "./watch-button": { WatchButton: ({ children }) => children },
+        "@/features/media/hooks/use-hero-media": {
+            useHeroMedia: () => ({
+                isLoading: false,
+                items: [
+                    { movie: { title: "First movie", ids: { imdb: "tt0000001" } } },
+                    { show: { title: "Second show", ids: { imdb: "tt0000002" } } },
+                ],
+            }),
+        },
+    })("src/features/media/components/hero-carousel.tsx").HeroCarousel;
+    for (const compact of [false, true]) {
+        const markup = renderToStaticMarkup(React.createElement(Hero, { compact }));
+        assert.equal((markup.match(/<img\b/g) || []).length, 4);
+        assert.doesNotMatch(markup, /scale-|duration-8000|transition-transform/);
+        assert.match(markup, /Watch Now/);
+        assert.match(markup, /Browse Episodes/);
+    }
+});
+
 test("dashboard uses the full hero without saved playbacks and a compact layout only with real progress", () => {
     const React = nativeRequire("react");
     const { renderToStaticMarkup } = nativeRequire("react-dom/server");

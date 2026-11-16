@@ -47,12 +47,8 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive, compac
                     "hidden md:block relative w-full overflow-hidden",
                     compact ? "aspect-[5/2] min-h-[360px] max-h-[900px]" : "aspect-2/1"
                 )}>
-                {/* Background Image with Ken Burns effect */}
-                <div
-                    className={cn(
-                        "absolute inset-0 transition-transform duration-8000 ease-out",
-                        isActive ? "scale-[1.02]" : "scale-100"
-                    )}>
+                {/* Static artwork; only the carousel moves between slides. */}
+                <div className="absolute inset-0">
                     <img
                         src={desktopImage}
                         alt=""
@@ -184,11 +180,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive, compac
             {/* Mobile Layout */}
             <div className={cn("md:hidden relative w-full overflow-hidden", compact ? "h-[320px]" : "aspect-9/14")}>
                 {/* Background */}
-                <div
-                    className={cn(
-                        "absolute inset-0 transition-transform duration-8000 ease-out",
-                        isActive ? "scale-105" : "scale-100"
-                    )}>
+                <div className="absolute inset-0">
                     <img
                         src={mobileImage}
                         alt=""
