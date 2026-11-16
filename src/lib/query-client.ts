@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
 import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 import { del, get, set } from "idb-keyval";
 import { QUERY_CACHE_GC_TIME, QUERY_CACHE_IDB_MAX_AGE, QUERY_CACHE_STALE_TIME } from "./constants";
@@ -27,4 +27,12 @@ export const queryClient = new QueryClient({
 });
 
 const persister = createIDBPersister("DEBRIDUI_CACHE");
-export const persistOptions = { persister, maxAge: QUERY_CACHE_IDB_MAX_AGE };
+export const persistOptions = {
+    persister,
+    maxAge: QUERY_CACHE_IDB_MAX_AGE,
+    dehydrateOptions: {
+        // Keep linked-account progress out of persistent browser caches and exported cache data.
+        shouldDehydrateQuery: (query: Parameters<typeof defaultShouldDehydrateQuery>[0]) =>
+            query.queryKey[0] !== "simkl" && defaultShouldDehydrateQuery(query),
+    },
+};

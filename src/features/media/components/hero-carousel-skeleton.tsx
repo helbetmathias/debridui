@@ -7,7 +7,7 @@ export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton() {
     return (
         <div className="-mx-4 -mt-6 lg:-mx-6 relative">
             {/* Desktop skeleton */}
-            <div className="hidden md:block relative w-full aspect-2/1 overflow-hidden">
+            <div className="hidden md:block relative w-full h-[clamp(360px,48vh,560px)] overflow-hidden">
                 <Skeleton className="absolute inset-0 rounded-none" />
 
                 {/* Gradient overlays for depth */}
@@ -55,7 +55,7 @@ export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton() {
             </div>
 
             {/* Mobile skeleton */}
-            <div className="md:hidden relative w-full aspect-9/14 overflow-hidden">
+            <div className="md:hidden relative w-full h-[360px] overflow-hidden">
                 <Skeleton className="absolute inset-0 rounded-none" />
 
                 {/* Gradient overlays */}

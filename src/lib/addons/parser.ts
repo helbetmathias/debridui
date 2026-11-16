@@ -204,7 +204,10 @@ export function catalogMetasToMediaItems(metas: CatalogMeta[]): MediaItem[] {
             title: meta.name,
             year: parseInt(meta.releaseInfo || "", 10) || undefined,
             ids: { imdb: meta.id, slug: meta.id },
-            images: meta.poster ? { poster: [cdnUrl(meta.poster, { w: 300, h: 450 })] } : undefined,
+            images: {
+                ...(meta.poster ? { poster: [cdnUrl(meta.poster, { w: 300, h: 450 })] } : {}),
+                ...(meta.background ? { fanart: [cdnUrl(meta.background, { w: 1280 })] } : {}),
+            },
             rating: meta.imdbRating ? parseFloat(meta.imdbRating) : undefined,
             genres: meta.genres,
             overview: meta.description,

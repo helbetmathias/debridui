@@ -1,3 +1,5 @@
+import { mixHeroItems } from "@/lib/media/hero";
+
 // Normalized media types shared by TMDB, Stremio addons, and the UI.
 export interface MediaIds {
     slug?: string;
@@ -12,6 +14,7 @@ export interface MediaImages {
 
 export interface Media {
     title: string;
+    runtime?: number;
     year?: number;
     ids?: MediaIds;
     images?: MediaImages;
@@ -317,13 +320,12 @@ export class MediaClient {
     }
 
     /**
-     * Get trending mixed (movies and shows) sorted by watchers
+     * Get trending movies and shows, alternating both feeds.
      */
     public async getTrendingMixed(limit = 20): Promise<{ mixed: RankedMediaItem[] }> {
         const [movies, shows] = await Promise.all([this.getTrendingMovies(limit), this.getTrendingShows(limit)]);
 
-        // Combine and sort by watchers (descending)
-        const mixed = [...movies, ...shows].sort((a, b) => (b.watchers || 0) - (a.watchers || 0)).slice(0, limit);
+        const mixed = mixHeroItems([movies, shows], limit);
 
         return { mixed };
     }

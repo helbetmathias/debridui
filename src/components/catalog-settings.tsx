@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import { SectionDivider } from "@/components/layout/section-divider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useAddonCatalogDefs } from "@/features/addons/hooks/use-addons";
 import { useSaveUserSettings, useUserSettings } from "@/features/settings/hooks/use-user-settings";
 import {
     type CatalogVisibilityPreferences,
     catalogPreferenceKey,
+    getHeroCatalogKeys,
     isCatalogVisible,
 } from "@/lib/addons/catalog-preferences";
 
@@ -33,6 +35,10 @@ export function CatalogSettings() {
         [addonManifests]
     );
     const visibleCount = enabledCatalogs.filter((catalog) => isCatalogVisible(catalog, preferences)).length;
+    const heroKeys = getHeroCatalogKeys(
+        addonManifests.flatMap((addon) => addon.catalogs),
+        settings?.hero_catalogs
+    );
 
     const persistPreferences = async (next: CatalogVisibilityPreferences) => {
         try {
@@ -47,7 +53,15 @@ export function CatalogSettings() {
     };
 
     const handleReset = () => {
-        void persistPreferences({});
+        void saveSettings
+            .mutateAsync({ catalog_visibility: {}, hero_catalogs: getHeroCatalogKeys(enabledCatalogs) })
+            .catch(() => toast.error("Failed to reset catalog settings"));
+    };
+
+    const handleHeroToggle = (key: string, checked: boolean) => {
+        const next = checked ? [...heroKeys, key] : heroKeys.filter((item) => item !== key);
+        if (next.length > 2) return;
+        void saveSettings.mutateAsync({ hero_catalogs: next }).catch(() => toast.error("Failed to save hero catalogs"));
     };
 
     const isLoading = manifestsLoading || settingsLoading;
@@ -62,7 +76,10 @@ export function CatalogSettings() {
                     <p className="mt-1 text-xs text-muted-foreground">
                         {isLoading
                             ? "Loading addon capabilities..."
-                            : `${visibleCount} of ${enabledCatalogs.length} available catalog(s) visible`}
+                            : `${visibleCount} of ${enabledCatalogs.length} catalogs visible · ${heroKeys.length}/2 hero sources`}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        Choose up to two hero sources independently of row visibility.
                     </p>
                 </div>
                 <Button
@@ -120,6 +137,8 @@ export function CatalogSettings() {
                                     {addon.catalogs.map((catalog) => {
                                         const preferenceKey = catalogPreferenceKey(catalog);
                                         const visible = isCatalogVisible(catalog, preferences);
+                                        const inHero = heroKeys.includes(preferenceKey);
+                                        const supportsHero = catalog.type === "movie" || catalog.type === "series";
 
                                         return (
                                             <div
@@ -131,12 +150,41 @@ export function CatalogSettings() {
                                                         {catalog.type === "series" ? "TV series" : catalog.type}
                                                     </p>
                                                 </div>
-                                                <Switch
-                                                    checked={visible}
-                                                    onCheckedChange={(checked) => handleToggle(preferenceKey, checked)}
-                                                    disabled={!addon.addonEnabled || saveSettings.isPending}
-                                                    aria-label={`${visible ? "Hide" : "Show"} ${catalog.name} on dashboard`}
-                                                />
+                                                <div className="flex shrink-0 items-center gap-4">
+                                                    <label
+                                                        htmlFor={`hero-${preferenceKey}`}
+                                                        className="flex min-h-11 items-center gap-2 text-xs text-muted-foreground">
+                                                        <Checkbox
+                                                            id={`hero-${preferenceKey}`}
+                                                            checked={inHero}
+                                                            onCheckedChange={(checked) =>
+                                                                handleHeroToggle(preferenceKey, checked === true)
+                                                            }
+                                                            disabled={
+                                                                saveSettings.isPending ||
+                                                                !supportsHero ||
+                                                                (!inHero &&
+                                                                    (!addon.addonEnabled || heroKeys.length >= 2))
+                                                            }
+                                                            aria-label={`Use ${catalog.name} ${catalog.type} from ${addon.addonName} in hero`}
+                                                        />
+                                                        Hero
+                                                    </label>
+                                                    <label
+                                                        htmlFor={`visible-${preferenceKey}`}
+                                                        className="flex min-h-11 items-center gap-2 text-xs text-muted-foreground">
+                                                        Visible
+                                                        <Switch
+                                                            id={`visible-${preferenceKey}`}
+                                                            checked={visible}
+                                                            onCheckedChange={(checked) =>
+                                                                handleToggle(preferenceKey, checked)
+                                                            }
+                                                            disabled={!addon.addonEnabled || saveSettings.isPending}
+                                                            aria-label={`${visible ? "Hide" : "Show"} ${catalog.name} ${catalog.type} on dashboard`}
+                                                        />
+                                                    </label>
+                                                </div>
                                             </div>
                                         );
                                     })}

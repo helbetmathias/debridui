@@ -8,6 +8,151 @@ const ts = require("typescript");
 const root = path.resolve(__dirname, "..");
 const nativeRequire = createRequire(path.join(root, "package.json"));
 
+test("targeted SIMKL migration verifies its schema and never replays historical cleanup", async () => {
+    const { applySimklMigration } = require("../scripts/apply-simkl-migration.cjs");
+    const migration = {
+        sql: fs.readFileSync(path.join(root, "drizzle/0007_simkl_connections.sql"), "utf8"),
+        hash: "current",
+        when: 7,
+    };
+    const previous = { hash: "previous", when: 6 };
+    assert.match(migration.sql, /^CREATE TABLE IF NOT EXISTS/);
+    assert.doesNotMatch(migration.sql, /(?:^|;)\s*(?:DROP|TRUNCATE|DELETE)\b/i);
+    function database(last, mismatch = false) {
+        const writes = [];
+        const tx = async (strings) => {
+            const query = strings.join("?");
+            if (query.includes("udt_name")) return [{ udt_name: "uuid" }];
+            if (query.includes("to_regclass")) return [{ journal: last ? "journal" : null }];
+            if (query.includes("order by created_at")) return [last];
+            if (query.includes("column_name, data_type"))
+                return Object.entries({
+                    user_id: "uuid",
+                    credentials: "text",
+                    oauth_state: "text",
+                    reconnect_required: mismatch ? "text" : "boolean",
+                    playback_cache: "jsonb",
+                    checked_at: "timestamp with time zone",
+                    retry_at: "timestamp with time zone",
+                }).map(([column_name, data_type]) => ({
+                    column_name,
+                    data_type,
+                    is_nullable: ["user_id", "reconnect_required"].includes(column_name) ? "NO" : "YES",
+                    column_default: column_name === "reconnect_required" ? "false" : null,
+                }));
+            if (query.includes("pg_constraint"))
+                return [
+                    { definition: "PRIMARY KEY (user_id)" },
+                    { definition: 'FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE' },
+                ];
+            if (query.includes("insert into")) writes.push("journal");
+            return [];
+        };
+        tx.unsafe = async (query) => writes.push(query);
+        return { writes, sql: { begin: async (callback) => callback(tx) } };
+    }
+    for (const last of [
+        null,
+        { hash: "old", created_at: 2 },
+        { hash: "previous", created_at: 6 },
+        { hash: "current", created_at: 7 },
+    ]) {
+        const db = database(last);
+        await applySimklMigration(db.sql, migration, previous);
+        assert.equal(db.writes[0], migration.sql);
+        assert.equal(db.writes.includes("journal"), last?.created_at === 6);
+    }
+    const mismatch = database(null, true);
+    await assert.rejects(applySimklMigration(mismatch.sql, migration, previous), /expected schema/);
+    assert.equal(mismatch.writes.includes("journal"), false);
+    const newer = database({ hash: "newer", created_at: 8 });
+    await assert.rejects(applySimklMigration(newer.sql, migration, previous), /newer migration/);
+    assert.equal(newer.writes.length, 0);
+});
+
+// Fixed, non-production credentials for local boundary tests only.
+function simklTestEnvironment() {
+    const values = {
+        SIMKL_CLIENT_ID: "test-client",
+        SIMKL_CLIENT_SECRET: "test-secret-not-real",
+        SIMKL_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+        NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    };
+    const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
+    Object.assign(process.env, values);
+    return () => {
+        for (const [key, value] of Object.entries(previous)) {
+            if (value === undefined) delete process.env[key];
+            else process.env[key] = value;
+        }
+    };
+}
+
+function simklDatabase() {
+    const rows = new Map();
+    const table = Object.fromEntries(
+        ["userId", "credentials", "oauthState", "playbackCache", "checkedAt", "retryAt"].map((key) => [key, key])
+    );
+    const orm = {
+        eq: (key, value) => (row) => row[key] === value,
+        and:
+            (...conditions) =>
+            (row) =>
+                conditions.every((test) => test(row)),
+    };
+    let queue = Promise.resolve();
+    const db = {
+        select: () => ({
+            from: () => ({
+                where: (test) => {
+                    const result = () => [...rows.values()].filter(test).map((row) => ({ ...row }));
+                    const query = Promise.resolve(result());
+                    query.for = async () => result();
+                    return query;
+                },
+            }),
+        }),
+        insert: () => ({
+            values: (value) => ({
+                onConflictDoUpdate: async ({ set }) => {
+                    rows.set(value.userId, rows.has(value.userId) ? { ...rows.get(value.userId), ...set } : value);
+                },
+            }),
+        }),
+        update: () => ({
+            set: (updates) => ({
+                where: (test) => {
+                    const changed = [...rows.values()].filter(test);
+                    for (const row of changed) Object.assign(row, updates);
+                    const result = Promise.resolve(changed);
+                    result.returning = async () => changed.map(({ userId }) => ({ userId }));
+                    return result;
+                },
+            }),
+        }),
+        delete: () => ({
+            where: async (test) => {
+                for (const [id, row] of rows) if (test(row)) rows.delete(id);
+            },
+        }),
+        transaction: (callback) => {
+            const run = queue.then(() => callback(db));
+            queue = run.catch(() => undefined);
+            return run;
+        },
+    };
+    return {
+        db,
+        rows,
+        mocks: {
+            "server-only": {},
+            "drizzle-orm": orm,
+            "@/lib/db/schema": { simklConnections: table },
+            "@/lib/db/drizzle": { db },
+        },
+    };
+}
+
 // Run the real TypeScript modules with isolated auth, database and network boundaries.
 function loader(mocks = {}) {
     const cache = new Map();
@@ -41,6 +186,389 @@ function loader(mocks = {}) {
     }
     return load;
 }
+
+test("hero source preferences are independent, limited to two, and mix/deduplicate fairly", () => {
+    const load = loader();
+    const { serverSettingsSchema } = load("src/lib/schemas.ts");
+    const { catalogPreferenceKey, getHeroCatalogKeys } = load("src/lib/addons/catalog-preferences.ts");
+    const { mixHeroItems } = load("src/lib/media/hero.ts");
+    const catalogs = ["movie", "series"].map((type) => ({
+        manifestId: "cinemeta",
+        addonName: "Cinemeta",
+        name: "Popular",
+        id: "top",
+        type,
+        addonEnabled: true,
+    }));
+    const defaults = catalogs.map(catalogPreferenceKey);
+    assert.deepEqual(getHeroCatalogKeys(catalogs), defaults);
+    assert.deepEqual(getHeroCatalogKeys(catalogs, []), []);
+    assert.deepEqual(getHeroCatalogKeys(catalogs, ["removed-addon", defaults[1]]), [defaults[1]]);
+    assert.deepEqual(getHeroCatalogKeys(catalogs.map((item) => ({ ...item, addonEnabled: false }))), []);
+    assert.deepEqual(
+        serverSettingsSchema.parse({ hero_catalogs: defaults, catalog_visibility: { [defaults[0]]: false } })
+            .hero_catalogs,
+        defaults
+    );
+    assert.equal(serverSettingsSchema.safeParse({ hero_catalogs: [...defaults, "third"] }).success, false);
+    assert.equal(serverSettingsSchema.safeParse({ hero_catalogs: [defaults[0], defaults[0]] }).success, false);
+    const movies = Array.from({ length: 10 }, (_, n) => ({ movie: { title: `Movie ${n}`, ids: { imdb: `tt${n}` } } }));
+    const shows = Array.from({ length: 10 }, (_, n) => ({ show: { title: `Show ${n}`, ids: { imdb: `tt${n}` } } }));
+    const mixed = mixHeroItems([movies, shows], 10);
+    assert.equal(mixed.filter((item) => item.movie).length, 5);
+    assert.equal(mixed.filter((item) => item.show).length, 5);
+    assert.equal(mixHeroItems([movies, movies], 10).length, 10);
+    assert.equal(mixHeroItems([[], shows], 10).length, 10);
+});
+
+test("SIMKL encryption binds credentials to the user; OAuth is scoped, PKCE-protected and expires", () => {
+    const restore = simklTestEnvironment();
+    try {
+        const security = loader({ "server-only": {} })("src/lib/simkl/security.ts");
+        const encrypted = security.seal({ accessToken: "private-access" }, "tokens:user-a");
+        assert.equal(encrypted.includes("private-access"), false);
+        assert.deepEqual(security.unseal(encrypted, "tokens:user-a"), { accessToken: "private-access" });
+        assert.throws(() => security.unseal(encrypted, "tokens:user-b"));
+        const pending = security.createAuthorization("user-a");
+        const url = new URL(pending.url);
+        assert.equal(url.origin, "https://simkl.com");
+        assert.equal(url.searchParams.get("scope"), "media:read");
+        assert.equal(url.searchParams.get("redirect_uri"), "http://localhost:3000/api/simkl/callback");
+        assert.equal(url.searchParams.has("client_secret"), false);
+        assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+        const payload = security.validateAuthorization(pending.cookie, pending.state, "user-a");
+        const challenge = require("node:crypto").createHash("sha256").update(payload.verifier).digest("base64url");
+        assert.equal(url.searchParams.get("code_challenge"), challenge);
+        assert.throws(() => security.validateAuthorization(pending.cookie, pending.state, "user-b"));
+        assert.throws(() => security.validateAuthorization(pending.cookie, "wrong", "user-a"));
+        const expired = security.seal({ ...payload, expires: 0 }, "oauth");
+        assert.throws(() => security.validateAuthorization(expired, pending.state, "user-a"));
+        process.env.SIMKL_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 8).toString("base64");
+        assert.throws(() => security.unseal(encrypted, "tokens:user-a"));
+        process.env.NEXT_PUBLIC_APP_URL = "http://unsafe.example";
+        assert.equal(security.isSimklConfigured(), false);
+    } finally {
+        restore();
+    }
+});
+
+test("SIMKL playback normalizes real movies/episodes, keeps latest point, and guards anime mappings", () => {
+    const { normalizePlayback, playbackStamp } = loader()("src/lib/simkl/playback.ts");
+    const movie = {
+        id: 1,
+        type: "movie",
+        progress: 35,
+        paused_at: "2026-11-16T06:30:00Z",
+        movie: { title: "Example", year: 2026, ids: { imdb: "tt123", simkl: 1, tmdb: "10" } },
+    };
+    const show = {
+        id: 2,
+        type: "episode",
+        progress: 50.5,
+        paused_at: "2026-11-16T06:40:00Z",
+        show: { title: "Show", ids: { imdb: "tt456", simkl: 2 } },
+        episode: { season: 1, number: 3, title: "Truth" },
+    };
+    const result = normalizePlayback([
+        movie,
+        show,
+        { ...movie, id: 3, progress: 20, paused_at: "2026-11-15T06:00:00Z" },
+        { ...movie, id: 4, progress: 100 },
+        { id: 5, progress: "invalid" },
+    ]);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].episode.number, 3);
+    assert.equal(result[1].progress, 35);
+    const anime = { ...show, show: undefined, anime: show.show };
+    assert.equal(normalizePlayback([anime])[0].episodeMapped, false);
+    const mapped = normalizePlayback([{ ...anime, episode: { ...show.episode, tvdb_season: 2, tvdb_number: 4 } }])[0];
+    assert.equal(mapped.episodeMapped, true);
+    assert.deepEqual(mapped.episode, { season: 2, number: 4, title: "Truth" });
+    assert.throws(() => normalizePlayback({ error: "bad" }));
+    assert.notEqual(playbackStamp({ movies: { playback: "one" } }), playbackStamp({ movies: { playback: "two" } }));
+});
+
+test("SIMKL callback state is single-use, scoped to its owner, and tokens never enter status", async () => {
+    const restore = simklTestEnvironment();
+    const database = simklDatabase();
+    let grants = 0;
+    const credentials = {
+        accessToken: "test-access",
+        refreshToken: "test-refresh",
+        expiresAt: Date.now() + 86400_000,
+        refreshExpiresAt: Date.now() + 86400_000 * 180,
+    };
+    const load = loader({
+        ...database.mocks,
+        "@/lib/simkl/client": {},
+        "./client": {
+            parseCredentials: (value) => value,
+            tokenGrant: async () => {
+                grants++;
+                return credentials;
+            },
+            revokeGrant: async () => {},
+        },
+    });
+    try {
+        const service = load("src/lib/simkl/service.ts");
+        const pending = await service.startAuthorization("user-a");
+        await assert.rejects(service.finishAuthorization("user-b", pending.cookie, pending.state, "code"));
+        assert.equal(grants, 0);
+        await service.finishAuthorization("user-a", pending.cookie, pending.state, "code");
+        assert.equal(grants, 1);
+        assert.deepEqual(await service.connectionStatus("user-a"), { configured: true, connected: true });
+        assert.deepEqual(await service.connectionStatus("user-b"), { configured: true, connected: false });
+        assert.equal(database.rows.get("user-a").credentials.includes("test-access"), false);
+        await assert.rejects(service.finishAuthorization("user-a", pending.cookie, pending.state, "code"));
+        assert.equal(grants, 1);
+    } finally {
+        restore();
+    }
+});
+
+test("SIMKL sync serializes refresh, isolates caches, gates playback on activities, and backs off", async () => {
+    const restore = simklTestEnvironment();
+    const database = simklDatabase();
+    let grants = 0;
+    let playbackReads = 0;
+    let activitiesReads = 0;
+    let fail = false;
+    let stamp = "one";
+    class SimklError extends Error {
+        constructor(status, retrySeconds = 60, code) {
+            super("test provider error");
+            Object.assign(this, { status, retrySeconds, code });
+        }
+    }
+    const load = loader({
+        ...database.mocks,
+        "./client": {
+            parseCredentials: (value) => value,
+            SimklError,
+            tokenGrant: async () => {
+                grants++;
+                return {
+                    accessToken: "new-access",
+                    refreshToken: "refresh",
+                    expiresAt: Date.now() + 86400_000,
+                    refreshExpiresAt: Date.now() + 86400_000 * 180,
+                };
+            },
+            readSimkl: async (endpoint) => {
+                if (fail) throw new SimklError(429, 120);
+                if (endpoint === "/sync/activities") {
+                    activitiesReads++;
+                    return { movies: { playback: stamp } };
+                }
+                playbackReads++;
+                return [
+                    {
+                        id: 1,
+                        type: "movie",
+                        progress: 35,
+                        paused_at: "2026-11-16T06:30:00Z",
+                        movie: { title: "Example", ids: { imdb: "tt123", simkl: 1 } },
+                    },
+                ];
+            },
+        },
+    });
+    try {
+        const { seal } = load("src/lib/simkl/security.ts");
+        database.rows.set("user-a", {
+            userId: "user-a",
+            credentials: seal(
+                { accessToken: "old", refreshToken: "refresh", expiresAt: 0, refreshExpiresAt: Date.now() + 86400_000 },
+                "tokens:user-a"
+            ),
+        });
+        const service = load("src/lib/simkl/service.ts");
+        const results = await Promise.all([service.getSimklPlayback("user-a"), service.getSimklPlayback("user-a")]);
+        assert.equal(grants, 1);
+        assert.equal(playbackReads, 1);
+        assert.equal(activitiesReads, 1);
+        assert.equal(results[0].items[0].progress, 35);
+        assert.equal(JSON.stringify(results).includes("new-access"), false);
+        assert.equal((await service.getSimklPlayback("user-b")).items.length, 0);
+        database.rows.get("user-a").checkedAt = new Date(0);
+        await service.getSimklPlayback("user-a");
+        assert.equal(activitiesReads, 2);
+        assert.equal(playbackReads, 1);
+        stamp = "two";
+        database.rows.get("user-a").checkedAt = new Date(0);
+        await service.getSimklPlayback("user-a");
+        assert.equal(playbackReads, 2);
+        fail = true;
+        database.rows.get("user-a").checkedAt = new Date(0);
+        const stale = await service.getSimklPlayback("user-a");
+        assert.equal(stale.stale, true);
+        assert.equal(stale.items[0].progress, 35);
+        assert.equal(database.rows.get("user-a").playbackCache.stamp.includes("two"), true);
+        assert.ok(database.rows.get("user-a").retryAt.getTime() > Date.now() + 110_000);
+    } finally {
+        restore();
+    }
+});
+
+test("SIMKL provider sends only server-side credentials, read-only calls, and safe rate-limit errors", async () => {
+    const restore = simklTestEnvironment();
+    const originalFetch = global.fetch;
+    const requests = [];
+    let rateLimited = false;
+    global.fetch = async (url, init) => {
+        requests.push({ url: String(url), init });
+        if (rateLimited)
+            return new Response(JSON.stringify({ error: "rate_limit", private: "not-for-clients" }), {
+                status: 429,
+                headers: { "Retry-After": "120" },
+            });
+        return new Response(
+            JSON.stringify({
+                access_token: "access",
+                refresh_token: "refresh",
+                expires_in: 604800,
+                scope: "media:read",
+                token_type: "Bearer",
+            })
+        );
+    };
+    try {
+        const provider = loader({ "server-only": {} })("src/lib/simkl/client.ts");
+        const result = await provider.tokenGrant({
+            grant_type: "authorization_code",
+            code: "code",
+            code_verifier: "verifier",
+            redirect_uri: "http://localhost:3000/api/simkl/callback",
+        });
+        assert.equal(result.accessToken, "access");
+        assert.equal(new URLSearchParams(requests[0].init.body).get("client_secret"), "test-secret-not-real");
+        assert.equal(requests[0].url.includes("test-secret"), false);
+        await provider.readSimkl("/sync/playback", result.accessToken);
+        assert.equal(requests[1].init.headers.Authorization, "Bearer access");
+        assert.equal(new URL(requests[1].url).searchParams.get("app-name"), "debridui");
+        assert.equal(requests[1].init.cache, "no-store");
+        rateLimited = true;
+        await assert.rejects(
+            provider.readSimkl("/sync/playback", result.accessToken),
+            (error) => error.status === 429 && error.retrySeconds === 120 && !error.message.includes("not-for-clients")
+        );
+    } finally {
+        global.fetch = originalFetch;
+        restore();
+    }
+});
+
+test("SIMKL retains refreshed credentials after a failed read and persists revoked-account reconnect state", async () => {
+    const restore = simklTestEnvironment();
+    const database = simklDatabase();
+    let revoked = false;
+    class SimklError extends Error {
+        constructor(status, retrySeconds = 60, code) {
+            super("provider failed");
+            Object.assign(this, { status, retrySeconds, code });
+        }
+    }
+    const load = loader({
+        ...database.mocks,
+        "./client": {
+            parseCredentials: (value) => value,
+            SimklError,
+            tokenGrant: async () => {
+                if (revoked) throw new SimklError(400, 60, "invalid_grant");
+                return {
+                    accessToken: "new-persisted-access",
+                    refreshToken: "refresh",
+                    expiresAt: Date.now() + 86400_000,
+                    refreshExpiresAt: Date.now() + 180 * 86400_000,
+                };
+            },
+            readSimkl: async () => {
+                throw new SimklError(revoked ? 401 : 500);
+            },
+        },
+    });
+    try {
+        const security = load("src/lib/simkl/security.ts");
+        const service = load("src/lib/simkl/service.ts");
+        database.rows.set("user-a", {
+            userId: "user-a",
+            credentials: security.seal(
+                {
+                    accessToken: "old-access",
+                    refreshToken: "refresh",
+                    expiresAt: 0,
+                    refreshExpiresAt: Date.now() + 86400_000,
+                },
+                "tokens:user-a"
+            ),
+        });
+        assert.equal((await service.getSimklPlayback("user-a")).stale, true);
+        assert.equal(
+            security.unseal(database.rows.get("user-a").credentials, "tokens:user-a").accessToken,
+            "new-persisted-access"
+        );
+        revoked = true;
+        database.rows.get("user-a").retryAt = null;
+        assert.equal((await service.getSimklPlayback("user-a")).reconnectRequired, true);
+        assert.equal(database.rows.get("user-a").credentials, null);
+        assert.equal((await service.getSimklPlayback("user-a")).reconnectRequired, true);
+        assert.equal((await service.connectionStatus("user-a")).reconnectRequired, true);
+    } finally {
+        restore();
+    }
+});
+
+test("SIMKL API rejects anonymous/cross-origin mutations and ignores supplied user IDs", async () => {
+    const restore = simklTestEnvironment();
+    let userId = null;
+    const calls = [];
+    const { NextRequest } = nativeRequire("next/server");
+    const route = loader({
+        "server-only": {},
+        "@/lib/auth": { auth: { api: { getSession: async () => (userId ? { user: { id: userId } } : null) } } },
+        "@/lib/simkl/service": {
+            connectionStatus: async (id) => {
+                calls.push(id);
+                return { configured: true, connected: true };
+            },
+            getSimklPlayback: async (id) => {
+                calls.push(id);
+                return { configured: true, connected: true, items: [] };
+            },
+            disconnectSimkl: async (id) => {
+                calls.push(id);
+                return { revoked: true };
+            },
+        },
+    })("src/app/api/simkl/[action]/route.ts");
+    const context = (action) => ({ params: Promise.resolve({ action }) });
+    try {
+        assert.equal(
+            (await route.GET(new NextRequest("http://localhost:3000/api/simkl/playback"), context("playback"))).status,
+            401
+        );
+        assert.equal(calls.length, 0);
+        userId = "signed-in-user";
+        const bad = await route.POST(
+            new NextRequest("http://localhost:3000/api/simkl/disconnect", {
+                method: "POST",
+                headers: { origin: "https://evil.invalid" },
+            }),
+            context("disconnect")
+        );
+        assert.equal(bad.status, 403);
+        const response = await route.GET(
+            new NextRequest("http://localhost:3000/api/simkl/playback?userId=someone-else"),
+            context("playback")
+        );
+        assert.equal(response.status, 200);
+        assert.deepEqual(calls, ["signed-in-user"]);
+        assert.equal(response.headers.get("cache-control"), "private, no-store");
+    } finally {
+        restore();
+    }
+});
 
 test("MPV bridge is opt-in, preserves signed URLs, and formats clean movie/episode titles", () => {
     const opened = [];
@@ -104,7 +632,7 @@ test("plain and encrypted backups retain catalog visibility and reject a wrong p
     };
     const key = prefs.catalogPreferenceKey(catalog);
     const data = {
-        integrations: { catalog_visibility: { [key]: false } },
+        integrations: { catalog_visibility: { [key]: false }, hero_catalogs: [key] },
         addons: [{ name: "Catalogs", url: "https://example.test/manifest.json", enabled: true }],
     };
     for (const password of [undefined, "integration-test-password"]) {

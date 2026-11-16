@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SimklConnection } from "@/features/settings/components/simkl-connection";
 import { RESOLUTIONS, SOURCE_QUALITIES } from "@/lib/addons/parser";
 import { Resolution, type SourceQuality } from "@/lib/addons/types";
 import { cn } from "@/lib/utils";
@@ -248,6 +249,7 @@ export function StreamingSection() {
                     />
                 </div>
             </div>
+            <SimklConnection />
         </section>
     );
 }

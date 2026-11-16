@@ -385,8 +385,8 @@ export function useAddonCatalogDefs({ includeDisabled = false }: { includeDisabl
 /**
  * Fetches a single catalog's content. Use `enabled` to defer until visible.
  */
-export function useAddonCatalog(catalog: AddonCatalogDef, enabled = true) {
-    return useQuery({
+export function addonCatalogQueryOptions(catalog: AddonCatalogDef, enabled = true) {
+    return {
         queryKey: ["addon", catalog.addonId, "catalog", catalog.type, catalog.id],
         queryFn: async () => {
             const client = new AddonClient({ url: catalog.addonUrl });
@@ -399,7 +399,11 @@ export function useAddonCatalog(catalog: AddonCatalogDef, enabled = true) {
         staleTime: 30 * 60 * 1000,
         retry: 1,
         refetchOnWindowFocus: false,
-    });
+    };
+}
+
+export function useAddonCatalog(catalog: AddonCatalogDef, enabled = true) {
+    return useQuery(addonCatalogQueryOptions(catalog, enabled));
 }
 
 /**

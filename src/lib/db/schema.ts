@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { AccountType } from "@/lib/schemas";
+import type { SimklPlaybackCache } from "@/lib/simkl/types";
 
 export * from "./auth-schema";
 
@@ -47,6 +48,19 @@ export const userSettings = pgTable("user_settings", {
         .primaryKey()
         .references(() => user.id, { onDelete: "cascade" }),
     settings: jsonb("settings").notNull(),
+});
+
+// Separate from settings and backups: these credentials are encrypted server-side.
+export const simklConnections = pgTable("simkl_connections", {
+    userId: uuid("user_id")
+        .primaryKey()
+        .references(() => user.id, { onDelete: "cascade" }),
+    credentials: text("credentials"),
+    oauthState: text("oauth_state"),
+    reconnectRequired: boolean("reconnect_required").notNull().default(false),
+    playbackCache: jsonb("playback_cache").$type<SimklPlaybackCache>(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    retryAt: timestamp("retry_at", { withTimezone: true }),
 });
 
 // Relations

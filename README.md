@@ -20,9 +20,11 @@ This is a customized fork of [viperadnan-git/debridui](https://github.com/vipera
 
 - **TMDB-first media discovery** - Discovery, search, metadata, cast, seasons, and episodes use TMDB through an authenticated server-side proxy. Both TMDB API keys and Read Access Tokens are supported.
 - **More Like This** - Movie and TV detail pages include lazy-loaded TMDB recommendations after Cast & Crew, with similar titles used as a fallback.
-- **Synced catalogue controls** - Every catalogue declared by an enabled Stremio addon can be shown or hidden from the dashboard. Preferences are saved per account, synchronized across devices, and hidden catalogues are not fetched.
+- **Synced catalogue controls** - Every catalogue declared by an enabled Stremio addon can be shown or hidden from the dashboard. Preferences are saved per account and synchronized across devices. Hidden catalogues are only fetched if selected as a hero source.
 - **Addon capability overview** - The Addons page identifies whether each addon provides catalogues, streams, metadata, or subtitles.
-- **Local search history** - Recent searches stay in the current browser. Playback history and Continue Watching are omitted because external players cannot report reliable playback progress.
+- **Local search history** - Recent searches stay in the current browser, not in a synced watch history.
+- **Configurable compact hero** - Select up to two addon subcatalogues independently of row visibility, with a balanced movie/series mix and account-synced preferences.
+- **SIMKL Continue Watching** - Optional read-only account connection shows real saved movie/episode progress below the hero. Resume uses fresh stream sources and the player's own SIMKL integration. See [server setup and limitations](docs/simkl-continue-watching.md).
 - **Optional Windows MPV / SIMKL bridge** - Readable movie/episode filenames for the existing SIMKL scrobbler, with a console-free launcher and unchanged normal MPV support. See [setup and limitations](docs/mpv-simkl-bridge.md).
 - **Streamlined interface** - The duplicate dashboard welcome/search area was removed, the shortcut hint is Windows-friendly, and movie source results remain readable above artwork and gradients.
 - **Performance and reliability fixes** - TMDB images use appropriately sized variants and server caching, addon reordering is more robust, and media pages avoid unnecessary catalogue requests.

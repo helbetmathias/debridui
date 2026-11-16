@@ -50,6 +50,13 @@
       "when": 1785670709203,
       "tag": "0006_technical_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794780000000,
+      "tag": "0007_simkl_connections",
+      "breakpoints": true
     }
   ]
 }

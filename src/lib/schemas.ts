@@ -99,6 +99,11 @@ export const removeSearchPickSchema = z.object({
 export const serverSettingsSchema = z.object({
     tmdb_api_key: z.string().max(256).optional(),
     catalog_visibility: z.record(z.string(), z.boolean()).optional(),
+    hero_catalogs: z
+        .array(z.string().min(1).max(1024))
+        .max(2)
+        .refine((keys) => new Set(keys).size === keys.length)
+        .optional(),
 });
 
 const streamingResolutionSchema = z.union([z.enum(Resolution), z.literal("any")]);

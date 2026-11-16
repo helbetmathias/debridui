@@ -7,15 +7,15 @@ import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Carousel, type CarouselApi, CarouselContent, CarouselItem } from "@/components/ui/carousel";
-import { useTrendingMixed } from "@/features/media/hooks/use-media";
-import type { RankedMediaItem } from "@/lib/media";
+import { useHeroMedia } from "@/features/media/hooks/use-hero-media";
+import type { MediaItem } from "@/lib/media";
 import { getBackdropUrl, getPosterUrl } from "@/lib/media/images";
 import { cn } from "@/lib/utils";
 import { HeroCarouselSkeleton } from "./hero-carousel-skeleton";
 import { WatchButton } from "./watch-button";
 
 interface HeroSlideProps {
-    item: RankedMediaItem;
+    item: MediaItem;
     index: number;
     total: number;
     isActive: boolean;
@@ -41,7 +41,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
     return (
         <div className="relative w-full">
             {/* Desktop Layout */}
-            <div className="hidden md:block relative w-full aspect-2/1 overflow-hidden">
+            <div className="hidden md:block relative w-full h-[clamp(360px,48vh,560px)] overflow-hidden">
                 {/* Background Image with Ken Burns effect */}
                 <div
                     className={cn(
@@ -91,7 +91,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
                             </div>
 
                             {/* Title */}
-                            <h1 className="text-4xl lg:text-5xl xl:text-6xl font-light leading-tightest tracking-tight">
+                            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-light leading-tightest tracking-tight line-clamp-2">
                                 {media.title}
                             </h1>
 
@@ -173,7 +173,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive }: Hero
             </div>
 
             {/* Mobile Layout */}
-            <div className="md:hidden relative w-full aspect-9/14 overflow-hidden">
+            <div className="md:hidden relative w-full h-[360px] overflow-hidden">
                 {/* Background */}
                 <div
                     className={cn(
@@ -303,7 +303,7 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
         []
     );
 
-    const { data: items, isLoading } = useTrendingMixed(10);
+    const { items: mixed, isLoading } = useHeroMedia();
 
     const scrollPrev = useCallback(() => api?.scrollPrev(), [api]);
     const scrollNext = useCallback(() => api?.scrollNext(), [api]);
@@ -317,6 +317,11 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
 
         const onSelect = () => setCurrent(api.selectedScrollSnap());
         api.on("select", onSelect);
+        const onReInit = () => {
+            setCount(api.scrollSnapList().length);
+            setCurrent(api.selectedScrollSnap());
+        };
+        api.on("reInit", onReInit);
 
         if (!isLoading) {
             autoplay.play();
@@ -327,14 +332,13 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
 
         return () => {
             api.off("select", onSelect);
+            api.off("reInit", onReInit);
         };
     }, [api, autoplay, isLoading, autoFocus]);
 
     if (isLoading) {
         return <HeroCarouselSkeleton />;
     }
-
-    const mixed = items?.mixed;
 
     if (!mixed || mixed.length === 0) {
         return null;
@@ -353,8 +357,10 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false }: He
                 }}
                 plugins={[autoplay, WheelGesturesPlugin()]}>
                 <CarouselContent className="ml-0">
-                    {mixed.map((item: RankedMediaItem, index: number) => (
-                        <CarouselItem key={(item.movie ?? item.show)?.ids?.tmdb ?? `hero-${index}`} className="pl-0">
+                    {mixed.map((item: MediaItem, index: number) => (
+                        <CarouselItem
+                            key={`${item.movie ? "movie" : "show"}:${(item.movie ?? item.show)?.ids?.imdb ?? (item.movie ?? item.show)?.ids?.slug ?? index}`}
+                            className="pl-0">
                             <HeroSlide item={item} index={index} total={mixed.length} isActive={index === current} />
                         </CarouselItem>
                     ))}
