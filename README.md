@@ -67,6 +67,8 @@ Application code lives in `src/`, organized by feature. See [Project Structure](
 
 Run `bun run verify` for TypeScript, code-quality checks, and the integration regression suite. The tests use isolated auth, database, and network fixtures and do not access production data.
 
+GitHub Actions runs the same checks on pull requests and pushes to `main` or `staging`; this workflow does not deploy.
+
 ## Getting Started
 
 ### Prerequisites

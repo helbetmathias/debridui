@@ -121,6 +121,7 @@ test("Continue Watching removes normal explanatory copy but retains refresh fail
     const render = () =>
         renderToStaticMarkup(
             React.createElement(ContinueWatching, {
+                userId: "viewer",
                 playback: { data: { connected: true, items: [{ id: "saved" }], stale }, refetch: () => {} },
             })
         );
@@ -156,8 +157,9 @@ test("compact playback cards keep movie/episode source requests unchanged and la
         pausedAt: "2026-11-16T12:00:00Z",
         episode: { season: 1, number: 2, title: "Truth" },
     };
-    const markup = renderToStaticMarkup(React.createElement(Card, { item: episode }));
+    const markup = renderToStaticMarkup(React.createElement(Card, { item: episode, onHide: () => {} }));
     assert.match(markup, /aria-label="Resume Silo"/);
+    assert.match(markup, /aria-label="Options for Silo"/);
     assert.match(markup, /35% watched/);
     assert.match(markup, /sm:hidden/);
     assert.match(markup, /hidden sm:flex/);
@@ -165,11 +167,49 @@ test("compact playback cards keep movie/episode source requests unchanged and la
     for (const request of requests) {
         assert.equal(request.imdbId, episode.imdbId);
         assert.equal(request.type, "show");
+        assert.equal(request.resume, true);
         assert.deepEqual(request.tvParams, { season: 1, episode: 2, title: "Truth" });
     }
     requests.length = 0;
-    renderToStaticMarkup(React.createElement(Card, { item: { ...episode, episodeMapped: false } }));
+    renderToStaticMarkup(React.createElement(Card, { item: { ...episode, episodeMapped: false }, onHide: () => {} }));
     assert.equal(requests.length, 0);
+});
+
+test("Continue Watching hide and undo are local to the user and the saved playback", () => {
+    const browser = new EventTarget();
+    const storage = new Map();
+    browser.localStorage = { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+    const originalWindow = global.window;
+    global.window = browser;
+    const {
+        playbackVisibilityKey,
+        parseHiddenPlaybacks,
+        readHiddenPlaybacks,
+        setPlaybackHidden,
+        subscribeHiddenPlaybacks,
+    } = loader()("src/features/media/utils/hidden-playbacks.ts");
+    const item = { id: "42", pausedAt: "2026-11-16T12:00:00Z" };
+    const newer = { ...item, pausedAt: "2026-11-16T12:01:00Z" };
+    let notifications = 0;
+    const stop = subscribeHiddenPlaybacks(() => notifications++);
+    const read = (userId) => parseHiddenPlaybacks(readHiddenPlaybacks(userId));
+    try {
+        setPlaybackHidden("viewer-a", item, true);
+        assert.deepEqual(read("viewer-a"), [playbackVisibilityKey(item)]);
+        assert.ok(!read("viewer-a").includes(playbackVisibilityKey(newer)));
+        assert.deepEqual(read("viewer-b"), []);
+        assert.equal(notifications, 1);
+        setPlaybackHidden("viewer-a", item, false);
+        assert.deepEqual(read("viewer-a"), []);
+        assert.equal(notifications, 2);
+        stop();
+        setPlaybackHidden("viewer-a", item, true);
+        assert.equal(notifications, 2);
+    } finally {
+        stop();
+        if (originalWindow === undefined) delete global.window;
+        else global.window = originalWindow;
+    }
 });
 
 test("targeted SIMKL migration verifies its schema and never replays historical cleanup", async () => {
@@ -1039,6 +1079,142 @@ test("MPV bridge is opt-in, preserves signed URLs, and formats clean movie/episo
     } finally {
         if (originalWindow === undefined) delete global.window;
         else global.window = originalWindow;
+    }
+});
+
+test("Remembered releases distinguish files, titles, episodes, users and ambiguous source matches", async () => {
+    const storage = new Map();
+    const oldWindow = global.window;
+    global.window = {
+        localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+    };
+    try {
+        const load = loader();
+        const { parseStream } = load("src/lib/addons/parser.ts");
+        const { rememberPlayedRelease, findRememberedRelease } = load("src/features/media/utils/remembered-release.ts");
+        const movie = { imdbId: "tt0123456", type: "movie", media: { title: "Movie" } };
+        const episode = { ...movie, type: "show", tvParams: { season: 1, episode: 2 } };
+        const torrent = { infoHash: "a".repeat(40), fileIdx: 0 };
+        const oldSource = parseStream({ ...torrent, url: "https://example.test/video?signature=old" }, "a", "Addon");
+        const fresh = parseStream({ ...torrent, url: "https://example.test/video?signature=fresh" }, "a", "Addon");
+        const other = parseStream({ ...torrent, fileIdx: 1, url: "https://example.test/other" }, "a", "Addon");
+        const fileOnly = parseStream(
+            {
+                url: "https://example.test/special",
+                behaviorHints: { filename: "Movie.Extended.1080p.mkv", videoSize: 987654321 },
+            },
+            "a",
+            "Addon"
+        );
+        const noIdentity = parseStream({ url: "https://example.test/generic", name: "1080p" }, "a", "Addon");
+        assert.equal(noIdentity.releaseIdentity, undefined);
+        assert.notEqual(fresh.releaseIdentity, other.releaseIdentity);
+        assert.ok(fileOnly.releaseIdentity);
+        await rememberPlayedRelease(movie, oldSource, "viewer-a");
+        assert.equal(await findRememberedRelease(movie, [other, fresh], "viewer-a"), fresh);
+        assert.equal(
+            await findRememberedRelease(
+                movie,
+                [fresh, { ...fresh, url: "https://example.test/duplicate" }],
+                "viewer-a"
+            ),
+            undefined
+        );
+        assert.equal(await findRememberedRelease(movie, [{ ...fresh, addonId: "b" }], "viewer-a"), undefined);
+        assert.equal(await findRememberedRelease(movie, [fresh], "viewer-b"), undefined);
+        assert.equal(await findRememberedRelease(episode, [fresh], "viewer-a"), undefined);
+        await rememberPlayedRelease(episode, fileOnly, "viewer-a");
+        assert.equal(await findRememberedRelease(episode, [fileOnly], "viewer-a"), fileOnly);
+        assert.equal(
+            await findRememberedRelease({ ...episode, tvParams: { season: 1, episode: 3 } }, [fileOnly], "viewer-a"),
+            undefined
+        );
+        assert.doesNotMatch([...storage.values()].join(), /signature|https:|Movie\.Extended/);
+        await rememberPlayedRelease(movie, noIdentity, "viewer-a");
+        assert.equal(await findRememberedRelease(movie, [fresh], "viewer-a"), undefined);
+    } finally {
+        if (oldWindow === undefined) delete global.window;
+        else global.window = oldWindow;
+    }
+});
+
+test("Resume fetches fresh streams and only prefers an eligible release; regular Watch is unchanged", async () => {
+    const oldFetch = global.fetch;
+    const mockRange = {
+        minResolution: "1080p",
+        maxResolution: "any",
+        minSourceQuality: "any",
+        maxSourceQuality: "any",
+    };
+    const streamingSettings = { autoPlay: true, allowUncached: false };
+    const request = { imdbId: "tt0123456", type: "movie", media: { title: "Movie" }, resume: true };
+    const addon = { id: "addon", name: "Addon", url: "https://example.test/manifest.json", enabled: true, order: 0 };
+    const last = {
+        name: "Instant 1080p WEB-DL",
+        infoHash: "a".repeat(40),
+        fileIdx: 0,
+        url: "https://video.test/fresh",
+    };
+    const best = {
+        name: "Instant 2160p WEB-DL",
+        infoHash: "b".repeat(40),
+        fileIdx: 0,
+        url: "https://video.test/ranked",
+    };
+    const opened = [];
+    let picked = "https://video.test/fresh";
+    let fetched = 0;
+    let cacheReads = 0;
+    let streams = [best, last];
+    const noop = () => {};
+    const load = loader({
+        sonner: { toast: { loading: () => "test", dismiss: noop, error: noop, success: noop, warning: noop } },
+        "@/stores/settings": {
+            getActiveRange: () => mockRange,
+            useSettingsStore: { getState: () => ({ get: (key) => (key === "streaming" ? streamingSettings : "MPV") }) },
+        },
+        "@/lib/media/player": { openInPlayer: ({ url }) => opened.push(url) },
+        "@/features/addons/hooks/use-addons": { getStreamCapableAddons: async (addons) => addons },
+        "@/features/preview/stores/preview": {},
+        "@/features/media/utils/remembered-release": {
+            findRememberedRelease: async (_request, sources, userId) => {
+                assert.equal(userId, "viewer-a");
+                return sources.find((source) => source.url === picked);
+            },
+            rememberPlayedRelease: noop,
+        },
+        "@/lib/query-client": {
+            queryClient: {
+                getQueryData: () => {
+                    cacheReads++;
+                    return [{ url: "https://video.test/legacy-cache", isCached: true }];
+                },
+                setQueryData: noop,
+            },
+        },
+    });
+    global.fetch = async (url, options) => {
+        assert.equal(url, "https://example.test/stream/movie/tt0123456.json");
+        assert.equal(options.cache, "no-store");
+        fetched++;
+        return Response.json({ streams });
+    };
+    try {
+        const store = load("src/features/media/stores/streaming.ts").useStreamingStore.getState();
+        await store.play(request, [addon], "viewer-a");
+        picked = "https://video.test/not-found";
+        await store.play(request, [addon], "viewer-a");
+        picked = last.url;
+        streams = [best, { ...last, name: "1080p WEB-DL" }];
+        await store.play(request, [addon], "viewer-a");
+        streams = [best, { ...last, name: "Instant 720p WEB-DL" }];
+        await store.play(request, [addon], "viewer-a");
+        await store.play({ ...request, resume: false }, [addon], "viewer-a");
+        assert.deepEqual(opened, [last.url, best.url, best.url, best.url, "https://video.test/legacy-cache"]);
+        assert.equal(fetched, 4);
+        assert.equal(cacheReads, 1);
+    } finally {
+        global.fetch = oldFetch;
     }
 });
 

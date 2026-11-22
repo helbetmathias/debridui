@@ -1,15 +1,21 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Film, Play } from "lucide-react";
+import { Ellipsis, EyeOff, Film, Play } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { mediaClient } from "@/lib/media";
 import { getBackdropUrl } from "@/lib/media/images";
 import type { SimklPlaybackItem } from "@/lib/simkl/types";
 import { WatchButton } from "./watch-button";
 
-export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
+export function ContinueWatchingCard({ item, onHide }: { item: SimklPlaybackItem; onHide: () => void }) {
     const id = item.imdbId || item.tmdbId || "";
     const { data: detail } = useQuery({
         queryKey: ["tmdb", "media", id, item.type],
@@ -37,6 +43,7 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
         imdbId: imdbId ?? "",
         type: item.type,
         media,
+        resume: true,
         ...(episode ? { tvParams: { season: episode.season, episode: episode.number, title: episode.title } } : {}),
     };
     const image = (
@@ -46,7 +53,7 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
                     src={art}
                     alt=""
                     loading="lazy"
-                    className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="size-full object-cover motion-safe:transition-transform duration-300 group-hover/watch-card:motion-safe:scale-105"
                 />
             ) : (
                 <Film className="absolute inset-0 m-auto size-8 text-muted-foreground" />
@@ -59,7 +66,7 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
         </div>
     );
     return (
-        <article className="group overflow-hidden rounded-sm border border-border/50 bg-muted/10">
+        <article className="group/watch-card overflow-hidden rounded-sm border border-border/50 bg-muted/10">
             <div className="relative">
                 {detailHref ? (
                     <Link
@@ -71,6 +78,23 @@ export function ContinueWatchingCard({ item }: { item: SimklPlaybackItem }) {
                 ) : (
                     image
                 )}
+                <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label={`Options for ${item.title}`}
+                            className="absolute right-2 top-2 rounded-sm border-border/60 bg-background/70 backdrop-blur-md hover:bg-background/85 motion-safe:transition-opacity after:absolute after:-inset-1 [@media(hover:hover)_and_(pointer:fine)]:pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0 group-hover/watch-card:pointer-events-auto group-hover/watch-card:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100">
+                            <Ellipsis aria-hidden="true" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-sm bg-popover/90 backdrop-blur-md">
+                        <DropdownMenuItem onSelect={onHide}>
+                            <EyeOff aria-hidden="true" />
+                            Hide from this row
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
                 {canResume && (
                     <WatchButton request={request}>
                         <Button

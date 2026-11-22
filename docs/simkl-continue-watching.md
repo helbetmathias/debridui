@@ -44,6 +44,10 @@ DebridUI reads saved pause/stop progress; it does not infer viewing from clickin
 
 **Resume** requests fresh sources through the existing addon/player flow. The selected player's own SIMKL integration must restore the position. On Windows, use **MPV (SIMKL bridge)** plus your existing SIMKL MPS scrobbler with playback resume enabled. See [MPV bridge setup](mpv-simkl-bridge.md). Normal MPV links and other players are unchanged; account-based resume cannot be guaranteed for a player without that integration.
 
+When DebridUI last launched a release for that exact movie or episode, **Resume** prefers an unambiguous match from freshly requested addon results, as long as it still meets your quality and cache preferences. If the addon doesn't provide enough file information, the match is missing, or more than one source matches, normal automatic selection applies. Only a file fingerprint is saved for matching, never the old stream URL. This memory is scoped to your DebridUI user in this browser and does not sync to other devices.
+
+Use a Continue Watching card's **⋯ → Hide from this row** to hide that saved playback in this browser, or **Undo** to restore it. It doesn't delete SIMKL history or affect other devices. A newer playback can appear in the row again.
+
 Items without an IMDb mapping cannot launch through the stream addons. Anime episodes without SIMKL's TVDB episode mapping display progress but require choosing the episode manually, avoiding an incorrect automatic season/episode selection. SIMKL's retention and saved-playback rules still apply.
 
 ## Privacy and synchronization

@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import { getStreamCapableAddons } from "@/features/addons/hooks/use-addons";
+import { findRememberedRelease, rememberPlayedRelease } from "@/features/media/utils/remembered-release";
 import { selectBestSource } from "@/features/media/utils/source-selector";
 import { usePreviewStore } from "@/features/preview/stores/preview";
 import { AddonClient } from "@/lib/addons/client";
@@ -18,14 +19,15 @@ export interface StreamingRequest {
     type: "movie" | "show";
     media: Media;
     tvParams?: TvSearchParams;
+    resume?: boolean;
 }
 
 interface StreamingState {
     activeRequest: StreamingRequest | null;
     selectedSource: AddonSource | null;
 
-    play: (request: StreamingRequest, addons: Addon[]) => Promise<void>;
-    playSource: (source: AddonSource, request: StreamingRequest) => void;
+    play: (request: StreamingRequest, addons: Addon[], userId?: string) => Promise<void>;
+    playSource: (source: AddonSource, request: StreamingRequest, userId?: string) => void;
     cancel: () => void;
 }
 
@@ -113,7 +115,7 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
     activeRequest: null,
     selectedSource: null,
 
-    playSource: (source, request) => {
+    playSource: (source, request, userId) => {
         if (!source.url) return;
 
         const mediaPlayer = useSettingsStore.getState().get("mediaPlayer");
@@ -140,10 +142,11 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
                 player: mediaPlayer,
             });
         }
+        void rememberPlayedRelease(request, source, userId);
     },
 
-    play: async (request, addons) => {
-        const { imdbId, type, tvParams, media } = request;
+    play: async (request, addons, userId) => {
+        const { imdbId, type, tvParams, resume } = request;
         const title = formatTitle(request);
 
         // Filter to enabled addons, then to stream-capable via manifest check (cache-first)
@@ -173,12 +176,14 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
             const sourcePromises = enabledAddons.map(async (addon) => {
                 const queryKey = ["addon", addon.id, "sources", imdbId, type, tvParams] as const;
 
-                const cached = queryClient.getQueryData<AddonSource[]>(queryKey);
-                if (cached) return cached;
+                if (!resume) {
+                    const cached = queryClient.getQueryData<AddonSource[]>(queryKey);
+                    if (cached) return cached;
+                }
 
                 try {
                     const client = new AddonClient({ url: addon.url });
-                    const response = await client.fetchStreams(imdbId, type, tvParams);
+                    const response = await client.fetchStreams(imdbId, type, tvParams, resume ? "no-store" : undefined);
                     const parsed = parseStreams(response.streams, addon.id, addon.name);
                     queryClient.setQueryData(queryKey, parsed);
                     return parsed;
@@ -210,18 +215,28 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
                 return;
             }
 
-            const { playSource } = get();
-            const source = result.source!;
+            const remembered = resume
+                ? await findRememberedRelease(
+                      request,
+                      streamingSettings.allowUncached
+                          ? [...result.cachedMatches, ...result.uncachedMatches]
+                          : result.cachedMatches,
+                      userId
+                  )
+                : undefined;
+            if (currentRequestId !== requestId) return;
+
+            const source = remembered ?? result.source!;
 
             set({ activeRequest: null, selectedSource: source });
 
             showSourceToast({
                 source,
                 title,
-                isCached: result.isCached,
+                isCached: !!source.isCached,
                 autoPlay: streamingSettings.autoPlay,
                 allowUncached: streamingSettings.allowUncached,
-                onPlay: () => playSource(source, { imdbId, type, tvParams, media }),
+                onPlay: () => get().playSource(source, request, userId),
             });
         } catch (error) {
             // Only show error if this is still the current request

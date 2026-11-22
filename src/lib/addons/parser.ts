@@ -154,6 +154,28 @@ export function constructMagnet(hash: string, title: string): string {
     return `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(title)}`;
 }
 
+function getReleaseIdentity(stream: AddonStream): string | undefined {
+    const hash = stream.infoHash?.toLowerCase();
+    const file = stream.fileIdx;
+    if (hash && /^[a-f0-9]{40}$/.test(hash) && typeof file === "number" && Number.isSafeInteger(file) && file >= 0) {
+        return `torrent:${hash}:${file}`;
+    }
+
+    const hints = stream.behaviorHints;
+    const bytes = hints?.videoSize;
+    if (typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes <= 0) return;
+    const videoHash = typeof hints?.videoHash === "string" ? hints.videoHash.toLowerCase() : undefined;
+    if (videoHash && /^[a-f0-9]{16}$/.test(videoHash) && videoHash !== "0000000000000000") {
+        return `video:${videoHash}:${bytes}`;
+    }
+
+    // Use the published filename and exact byte count; generic labels and signed URLs are not identities.
+    const filename = typeof hints?.filename === "string" ? hints.filename.trim() : undefined;
+    if (filename && filename.length <= 250 && /^[^/\\?#\r\n]+\.(?:mkv|mp4|m4v|avi|webm|mov|ts|m2ts)$/i.test(filename)) {
+        return `file:${bytes}:${filename.normalize("NFC")}`;
+    }
+}
+
 /**
  * Parse a single addon stream into AddonSource format
  */
@@ -184,6 +206,7 @@ export function parseStream(stream: AddonStream, addonId: string, addonName: str
         isCached,
         addonId,
         addonName,
+        releaseIdentity: getReleaseIdentity(stream),
     };
 }
 

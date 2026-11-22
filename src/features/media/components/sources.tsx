@@ -15,14 +15,14 @@ import {
     Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { memo, type ReactNode, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAddonSources } from "@/features/addons/hooks/use-addons";
-import { useAuthGuaranteed } from "@/features/auth/components/auth-provider";
+import { useAuth, useAuthGuaranteed } from "@/features/auth/components/auth-provider";
 import { type StreamingRequest, useStreamingStore } from "@/features/media/stores/streaming";
 import { selectBestSource } from "@/features/media/utils/source-selector";
 import { getSourceQualityIndex } from "@/lib/addons/parser";
@@ -235,7 +235,7 @@ export function QuickPlaySkeleton() {
     );
 }
 
-export function SimpleSources({ sources, request }: { sources: AddonSource[]; request: StreamingRequest }) {
+function SimpleSources({ sources, onPlay }: { sources: AddonSource[]; onPlay: (source: AddonSource) => void }) {
     const [pickedTier, setPickedTier] = useState<Tier | null>(null);
     const [pickedKey, setPickedKey] = useState<string | null>(null);
     const streamingSettings = useSettingsStore((s) => s.settings.streaming);
@@ -332,10 +332,7 @@ export function SimpleSources({ sources, request }: { sources: AddonSource[]; re
             action={
                 <>
                     {active.url && (
-                        <Button
-                            size="lg"
-                            className="h-11 w-full sm:h-10"
-                            onClick={() => useStreamingStore.getState().playSource(active, request)}>
+                        <Button size="lg" className="h-11 w-full sm:h-10" onClick={() => onPlay(active)}>
                             <PlayIcon className="size-4 fill-current" />
                             Play {active.size ? `(${active.size})` : `(${tier.label})`}
                         </Button>
@@ -365,12 +362,12 @@ export function SimpleSources({ sources, request }: { sources: AddonSource[]; re
     );
 }
 
-export const SourceRow = memo(function SourceRow({
+const SourceRow = memo(function SourceRow({
     source,
-    request,
+    onPlay,
 }: {
     source: AddonSource;
-    request: StreamingRequest;
+    onPlay: (source: AddonSource) => void;
 }) {
     const tier = resolutionTier(source.resolution);
     const resolutionLabel = source.resolution || TIERS.find((t) => t.key === tier)?.label;
@@ -425,7 +422,7 @@ export const SourceRow = memo(function SourceRow({
                     <div className="flex items-center gap-2 shrink-0">
                         <AddSourceButton magnet={source.magnet} url={source.url} />
                         {source.url && (
-                            <Button size="sm" onClick={() => useStreamingStore.getState().playSource(source, request)}>
+                            <Button size="sm" onClick={() => onPlay(source)}>
                                 <PlayIcon className="size-4 fill-current" />
                                 Play
                             </Button>
@@ -451,6 +448,11 @@ function SourceRowSkeleton() {
 }
 
 export function Sources({ request, className }: SourcesProps) {
+    const userId = useAuth().session?.user.id;
+    const play = useCallback(
+        (source: AddonSource) => useStreamingStore.getState().playSource(source, request, userId),
+        [request, userId]
+    );
     const {
         data: sources,
         isLoading,
@@ -540,13 +542,9 @@ export function Sources({ request, className }: SourcesProps) {
 
             <div className={cn("border border-border/40 rounded-sm overflow-hidden", className)}>
                 {quickPlay
-                    ? hasPickable && <SimpleSources sources={filtered ?? []} request={request} />
+                    ? hasPickable && <SimpleSources sources={filtered ?? []} onPlay={play} />
                     : filtered?.map((source, index) => (
-                          <SourceRow
-                              key={`${source.addonId}-${source.url || index}`}
-                              source={source}
-                              request={request}
-                          />
+                          <SourceRow key={`${source.addonId}-${source.url || index}`} source={source} onPlay={play} />
                       ))}
 
                 {isLoading &&

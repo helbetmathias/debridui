@@ -111,6 +111,8 @@ export interface AddonSource {
     isCached?: boolean;
     addonId: string;
     addonName: string;
+    /** File identity supplied by the addon, independent of its playback URL. */
+    releaseIdentity?: string;
 }
 
 export interface Addon {

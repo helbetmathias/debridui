@@ -13,7 +13,7 @@ export function DashboardContent({ startup }: { startup: SimklPlaybackStartup })
         <div className="pb-12">
             <HeroCarousel autoFocus compact={startup.savedPlayback?.connected ?? false} />
             <div className="lg:px-6 space-y-8 md:space-y-12">
-                <ContinueWatching playback={playback} />
+                <ContinueWatching playback={playback} userId={startup.userId} />
                 <AddonCatalogs />
                 <MediaFooter className="pt-10 border-t border-border/50" />
             </div>

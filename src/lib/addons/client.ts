@@ -49,7 +49,7 @@ export class AddonClient {
     /**
      * Make HTTP request with proper error handling
      */
-    private async makeRequest<T>(url: string): Promise<T> {
+    private async makeRequest<T>(url: string, cache?: RequestCache): Promise<T> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
@@ -57,6 +57,7 @@ export class AddonClient {
             const response = await fetch(url, {
                 headers: this.getHeaders(),
                 signal: controller.signal,
+                cache,
             });
 
             clearTimeout(timeoutId);
@@ -107,13 +108,13 @@ export class AddonClient {
     /**
      * Fetch streams for a movie
      */
-    async fetchMovieStreams(imdbId: string): Promise<AddonStreamResponse> {
+    async fetchMovieStreams(imdbId: string, cache?: RequestCache): Promise<AddonStreamResponse> {
         if (!imdbId?.trim()) {
             throw new AddonError("IMDB ID is required");
         }
 
         const url = `${this.baseUrl}/stream/movie/${imdbId}.json`;
-        const response = await this.makeRequest<AddonStreamResponse>(url);
+        const response = await this.makeRequest<AddonStreamResponse>(url, cache);
 
         if (!response.streams || !Array.isArray(response.streams)) {
             throw new AddonError("Invalid response structure: missing streams array");
@@ -125,7 +126,7 @@ export class AddonClient {
     /**
      * Fetch streams for a TV show episode
      */
-    async fetchTvStreams(imdbId: string, params: TvSearchParams): Promise<AddonStreamResponse> {
+    async fetchTvStreams(imdbId: string, params: TvSearchParams, cache?: RequestCache): Promise<AddonStreamResponse> {
         if (!imdbId?.trim()) {
             throw new AddonError("IMDB ID is required");
         }
@@ -135,7 +136,7 @@ export class AddonClient {
         }
 
         const url = `${this.baseUrl}/stream/series/${imdbId}:${params.season}:${params.episode}.json`;
-        const response = await this.makeRequest<AddonStreamResponse>(url);
+        const response = await this.makeRequest<AddonStreamResponse>(url, cache);
 
         if (!response.streams || !Array.isArray(response.streams)) {
             throw new AddonError("Invalid response structure: missing streams array");
@@ -173,17 +174,18 @@ export class AddonClient {
     async fetchStreams(
         imdbId: string,
         mediaType: "movie" | "show",
-        tvParams?: TvSearchParams
+        tvParams?: TvSearchParams,
+        cache?: RequestCache
     ): Promise<AddonStreamResponse> {
         if (mediaType === "movie") {
-            return this.fetchMovieStreams(imdbId);
+            return this.fetchMovieStreams(imdbId, cache);
         }
 
         if (!tvParams) {
             throw new AddonError("TV show requires season and episode parameters");
         }
 
-        return this.fetchTvStreams(imdbId, tvParams);
+        return this.fetchTvStreams(imdbId, tvParams, cache);
     }
 
     /**

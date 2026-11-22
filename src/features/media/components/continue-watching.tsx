@@ -2,14 +2,59 @@
 
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import type { useSimklPlayback } from "@/features/media/hooks/use-simkl";
+import {
+    parseHiddenPlaybacks,
+    playbackVisibilityKey,
+    readHiddenPlaybacks,
+    setPlaybackHidden,
+    subscribeHiddenPlaybacks,
+} from "@/features/media/utils/hidden-playbacks";
+import type { SimklPlaybackItem } from "@/lib/simkl/types";
 import { ContinueWatchingCard } from "./continue-watching-card";
 
-export function ContinueWatching({ playback }: { playback: ReturnType<typeof useSimklPlayback> }) {
+export function ContinueWatching({
+    playback,
+    userId,
+}: {
+    playback: ReturnType<typeof useSimklPlayback>;
+    userId: string;
+}) {
     const { data, isFetched, isFetching, error, refetch } = playback;
+    const hiddenSnapshot = useSyncExternalStore(
+        subscribeHiddenPlaybacks,
+        () => readHiddenPlaybacks(userId),
+        () => ""
+    );
     if (!error && !data?.connected && !data?.reconnectRequired) return null;
+    const hidden = new Set(parseHiddenPlaybacks(hiddenSnapshot));
+    const visibleItems = data?.items.filter((item) => !hidden.has(playbackVisibilityKey(item))) ?? [];
+
+    function hide(item: SimklPlaybackItem) {
+        try {
+            setPlaybackHidden(userId, item, true);
+            toast.success("Hidden from Continue Watching", {
+                duration: 7_000,
+                action: {
+                    label: "Undo",
+                    onClick: () => {
+                        try {
+                            setPlaybackHidden(userId, item, false);
+                        } catch {
+                            toast.error("Could not restore this card");
+                        }
+                    },
+                },
+            });
+        } catch {
+            toast.error("Could not hide this card");
+        }
+    }
+
     return (
         <section aria-labelledby="continue-watching-heading" className="pt-4 sm:pt-6 space-y-3 sm:space-y-4">
             <div className="flex min-h-11 sm:min-h-9 items-center justify-between gap-3">
@@ -41,12 +86,12 @@ export function ContinueWatching({ playback }: { playback: ReturnType<typeof use
                 <p className="text-sm text-muted-foreground" role="status">
                     Could not load SIMKL progress. Use refresh to try again.
                 </p>
-            ) : data?.items.length ? (
+            ) : visibleItems.length ? (
                 <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
                     <CarouselContent className="-ml-3">
-                        {data.items.map((item) => (
+                        {visibleItems.map((item) => (
                             <CarouselItem key={item.id} className="pl-3 basis-[208px] sm:basis-[280px]">
-                                <ContinueWatchingCard item={item} />
+                                <ContinueWatchingCard item={item} onHide={() => hide(item)} />
                             </CarouselItem>
                         ))}
                     </CarouselContent>
@@ -57,12 +102,14 @@ export function ContinueWatching({ playback }: { playback: ReturnType<typeof use
                 <p className="min-h-10 sm:min-h-5 text-sm text-muted-foreground">
                     {data?.stale || error
                         ? "SIMKL is temporarily unavailable. Try again shortly."
-                        : !data?.syncedAt && !isFetched
-                          ? "Checking SIMKL progress…"
-                          : "No saved playback yet. Pause or stop a title in your connected scrobbler to see it here."}
+                        : data?.items.length
+                          ? "No visible playbacks."
+                          : !data?.syncedAt && !isFetched
+                            ? "Checking SIMKL progress…"
+                            : "No saved playback yet. Pause or stop a title in your connected scrobbler to see it here."}
                 </p>
             )}
-            {(data?.items.length ?? 0) > 0 && (data?.stale || error) && (
+            {visibleItems.length > 0 && (data?.stale || error) && (
                 <p className="text-xs text-muted-foreground" role="status">
                     Could not refresh SIMKL; showing saved progress.
                 </p>
