@@ -8,7 +8,7 @@ import type { useSimklPlayback } from "@/features/media/hooks/use-simkl";
 import { ContinueWatchingCard } from "./continue-watching-card";
 
 export function ContinueWatching({ playback }: { playback: ReturnType<typeof useSimklPlayback> }) {
-    const { data, isFetching, error, refetch } = playback;
+    const { data, isFetched, isFetching, error, refetch } = playback;
     if (!error && !data?.connected && !data?.reconnectRequired) return null;
     return (
         <section aria-labelledby="continue-watching-heading" className="pt-4 sm:pt-6 space-y-3 sm:space-y-4">
@@ -54,10 +54,12 @@ export function ContinueWatching({ playback }: { playback: ReturnType<typeof use
                     <CarouselNext className="right-1 top-[58px] sm:top-[75px] size-9 bg-background/90 disabled:hidden after:absolute after:-inset-1 sm:after:hidden" />
                 </Carousel>
             ) : (
-                <p className="text-sm text-muted-foreground">
-                    {data?.stale
+                <p className="min-h-10 sm:min-h-5 text-sm text-muted-foreground">
+                    {data?.stale || error
                         ? "SIMKL is temporarily unavailable. Try again shortly."
-                        : "No saved playback yet. Pause or stop a title in your connected scrobbler to see it here."}
+                        : !data?.syncedAt && !isFetched
+                          ? "Checking SIMKL progress…"
+                          : "No saved playback yet. Pause or stop a title in your connected scrobbler to see it here."}
                 </p>
             )}
             {(data?.items.length ?? 0) > 0 && (data?.stale || error) && (

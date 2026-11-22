@@ -11,7 +11,7 @@ import { useHeroMedia } from "@/features/media/hooks/use-hero-media";
 import type { MediaItem } from "@/lib/media";
 import { getBackdropUrl, getPosterUrl } from "@/lib/media/images";
 import { cn } from "@/lib/utils";
-import { HeroCarouselSkeleton, HeroStartupPlaceholder } from "./hero-carousel-skeleton";
+import { HeroCarouselSkeleton } from "./hero-carousel-skeleton";
 import { WatchButton } from "./watch-button";
 
 interface HeroSlideProps {
@@ -292,7 +292,7 @@ const HeroSlide = memo(function HeroSlide({ item, index, total, isActive, compac
 
 interface HeroCarouselProps {
     autoFocus?: boolean;
-    compact?: boolean | null;
+    compact?: boolean;
 }
 
 export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false, compact = false }: HeroCarouselProps) {
@@ -346,7 +346,6 @@ export const HeroCarousel = memo(function HeroCarousel({ autoFocus = false, comp
     }, [api, autoplay, isLoading, autoFocus]);
 
     if (!isLoading && mixed.length === 0) return null;
-    if (compact === null) return <HeroStartupPlaceholder />;
     if (isLoading) return <HeroCarouselSkeleton compact={compact} />;
 
     return (

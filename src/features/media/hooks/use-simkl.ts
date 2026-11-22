@@ -20,12 +20,20 @@ export function useSimklStatus() {
     });
 }
 
-export function useSimklPlayback() {
+export interface SimklPlaybackStartup {
+    userId: string;
+    savedPlayback?: SimklPlayback;
+}
+
+export function useSimklPlayback(startup: SimklPlaybackStartup) {
     const { session } = useAuth();
+    const userId = session?.user.id ?? startup.userId;
     return useQuery({
-        queryKey: ["simkl", session?.user.id, "playback"],
+        queryKey: ["simkl", userId, "playback"],
         queryFn: () => read<SimklPlayback>("playback"),
         enabled: !!session,
+        initialData: userId === startup.userId ? startup.savedPlayback : undefined,
+        initialDataUpdatedAt: 0,
         staleTime: 60_000,
         retry: false,
         refetchOnWindowFocus: true,

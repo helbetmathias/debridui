@@ -4,27 +4,17 @@ import { memo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-export function HeroStartupPlaceholder() {
-    return (
-        <div className="-mx-4 -mt-6 lg:-mx-6 relative h-80 md:h-auto md:aspect-[5/2] md:min-h-[360px] md:max-h-[900px]">
-            <Skeleton className="absolute inset-0 rounded-none motion-reduce:animate-none" />
-            <span className="sr-only" role="status">
-                Loading featured titles
-            </span>
-        </div>
-    );
-}
-
 export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton({ compact = false }: { compact?: boolean }) {
     return (
-        <div className="-mx-4 -mt-6 lg:-mx-6 relative">
+        <div className="-mx-4 -mt-6 lg:-mx-6 relative" role="status">
+            <span className="sr-only">Loading featured titles</span>
             {/* Desktop skeleton */}
             <div
                 className={cn(
                     "hidden md:block relative w-full overflow-hidden",
                     compact ? "aspect-[5/2] min-h-[360px] max-h-[900px]" : "aspect-2/1"
                 )}>
-                <Skeleton className="absolute inset-0 rounded-none" />
+                <div className="absolute inset-0 bg-muted/20" />
 
                 {/* Gradient overlays for depth */}
                 <div className="absolute inset-0 bg-linear-to-r from-background via-background/70 to-transparent" />
@@ -72,7 +62,7 @@ export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton({ compact
 
             {/* Mobile skeleton */}
             <div className={cn("md:hidden relative w-full overflow-hidden", compact ? "h-[320px]" : "aspect-9/14")}>
-                <Skeleton className="absolute inset-0 rounded-none" />
+                <div className="absolute inset-0 bg-muted/20" />
 
                 {/* Gradient overlays */}
                 <div className="absolute inset-0 bg-linear-to-t from-background via-background/50 to-transparent" />

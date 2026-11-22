@@ -1,10 +1,18 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db/drizzle";
 import { simklConnections } from "@/lib/db/schema";
 import { parseCredentials, readSimkl, revokeGrant, type SimklCredentials, SimklError, tokenGrant } from "./client";
 import { normalizePlayback, playbackStamp } from "./playback";
-import { createAuthorization, seal, simklConfig, stateHash, unseal, validateAuthorization } from "./security";
+import {
+    createAuthorization,
+    isSimklConfigured,
+    seal,
+    simklConfig,
+    stateHash,
+    unseal,
+    validateAuthorization,
+} from "./security";
 import type { SimklPlayback, SimklPlaybackCache } from "./types";
 
 export async function startAuthorization(userId: string) {
@@ -65,6 +73,33 @@ export async function connectionStatus(userId: string) {
         configured: true,
         connected: !!row?.credentials,
         ...(row?.reconnectRequired ? { reconnectRequired: true } : {}),
+    };
+}
+
+export async function readSavedSimklPlayback(userId: string): Promise<SimklPlayback> {
+    if (!isSimklConfigured()) return { configured: false, connected: false, items: [] };
+
+    // Startup needs only the last committed snapshot, not a row lock or a request to SIMKL.
+    const [row] = await db
+        .select({
+            connected: isNotNull(simklConnections.credentials),
+            reconnectRequired: simklConnections.reconnectRequired,
+            playbackCache: simklConnections.playbackCache,
+            retryAt: simklConnections.retryAt,
+        })
+        .from(simklConnections)
+        .where(eq(simklConnections.userId, userId));
+
+    if (!row?.connected) {
+        return { configured: true, connected: false, items: [], reconnectRequired: row?.reconnectRequired };
+    }
+
+    return {
+        configured: true,
+        connected: true,
+        items: row.playbackCache?.items ?? [],
+        syncedAt: row.playbackCache?.syncedAt,
+        stale: !!row.retryAt && row.retryAt.getTime() > Date.now(),
     };
 }
 

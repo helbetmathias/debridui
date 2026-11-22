@@ -2,10 +2,10 @@
 
 ## What this adds
 
-- An adaptive dashboard hero: the original full-size banner when there is no saved Continue Watching content, and a moderately shorter, wider-framed desktop banner when that row has items. The phone banner and playback cards become compact in that state. Choose **up to two** sources using the **Hero** checkboxes beside existing catalogue visibility controls in **Addons → Dashboard Catalogs**. Popular movies and series from Cinemeta are the defaults. Sources alternate, with duplicate titles removed. Uncheck both to hide the hero.
+- An adaptive dashboard hero: the original full-size banner when SIMKL is disconnected, and a shorter banner on desktop and phone when it is connected. Choose **up to two** sources using the **Hero** checkboxes beside existing catalogue visibility controls in **Addons → Dashboard Catalogs**. Popular movies and series from Cinemeta are the defaults. Sources alternate, with duplicate titles removed. Uncheck both to hide the hero.
 - Hero selection is independent of whether the catalogue row is visible, and is saved to your DebridUI account alongside catalogue preferences. Disabled addons cannot supply hero items. An unavailable source is skipped rather than blocking other sources.
 - Hero artwork stays still on desktop and phone: no slow zoom. Carousel slide changes and navigation remain unchanged.
-- On startup, a neutral placeholder holds the hero while saved progress is checked. The first banner size stays fixed for that dashboard visit. If progress takes longer than 1.5 seconds to load, the hero opens at full size and any late results can still populate Continue Watching below it.
+- On startup, DebridUI reads the connection and last saved playback from its own database. Saved cards are shown immediately when available, and the hero loads at its final height without waiting for a fresh SIMKL response.
 - A **Continue Watching** row between the hero and catalogues, populated from your account's real saved SIMKL playbacks. Landscape cards show the saved percentage and episode. Movie time remaining is an estimate based on TMDB runtime, not a measured player position.
 - On phones, the Resume play button sits on the artwork to keep cards short; the full Resume button remains on desktop. Navigation arrows disappear when the row does not overflow. Normal playback does not add explanatory copy below the row; refresh failures still show a short stale-data notice.
 - **Settings → Streaming → SIMKL** connects or disconnects the account. It is not a second DebridUI sign-in method.

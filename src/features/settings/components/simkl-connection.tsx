@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useSimklStatus } from "@/features/media/hooks/use-simkl";
 export function SimklConnection() {
     const { data, isLoading, error, refetch } = useSimklStatus();
     const queryClient = useQueryClient();
+    const router = useRouter();
     const search = useSearchParams();
     const [disconnecting, setDisconnecting] = useState(false);
 
@@ -21,6 +22,7 @@ export function SimklConnection() {
             const result: { revoked: boolean } = await response.json();
             queryClient.removeQueries({ queryKey: ["simkl"] });
             await queryClient.invalidateQueries({ queryKey: ["simkl"] });
+            router.refresh();
             toast.success("SIMKL disconnected. Your SIMKL progress was not deleted.");
             if (!result.revoked)
                 toast.warning("Also remove DebridUI in SIMKL Connected Apps; token revocation could not be confirmed.");

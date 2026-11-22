@@ -27,9 +27,6 @@ test("hero artwork stays static on desktop and mobile in both full and compact l
             }),
         },
     })("src/features/media/components/hero-carousel.tsx").HeroCarousel;
-    const pending = renderToStaticMarkup(React.createElement(Hero, { compact: null }));
-    assert.match(pending, /Loading featured titles/);
-    assert.doesNotMatch(pending, /data-hero-layout|<img\b/);
     for (const compact of [false, true]) {
         const markup = renderToStaticMarkup(React.createElement(Hero, { compact }));
         assert.equal((markup.match(/<img\b/g) || []).length, 4);
@@ -39,34 +36,78 @@ test("hero artwork stays static on desktop and mobile in both full and compact l
     }
 });
 
-test("dashboard keeps the hero pending until playback is known and sizes it from the first result", () => {
+test("dashboard authenticates before reading saved playback and falls back if the database read fails", async () => {
+    let session = null;
+    const reads = [];
+    const savedPlayback = { configured: true, connected: true, items: [] };
+    let failing = false;
+    const DashboardPage = loader({
+        "next/navigation": {
+            redirect: (path) => {
+                throw new Error(path);
+            },
+        },
+        "@/lib/auth": { getRequestSession: async () => session },
+        "@/lib/simkl/service": {
+            readSavedSimklPlayback: async (id) => {
+                reads.push(id);
+                if (failing) throw new Error("Database unavailable");
+                return savedPlayback;
+            },
+        },
+        "./_components/dashboard-content": { DashboardContent: () => null },
+    })("src/app/(auth)/(app)/dashboard/page.tsx").default;
+    await assert.rejects(DashboardPage(), /\/login/);
+    assert.deepEqual(reads, []);
+    session = { user: { id: "user-a" } };
+    assert.deepEqual((await DashboardPage()).props.startup, { userId: "user-a", savedPlayback });
+    assert.deepEqual(reads, ["user-a"]);
+    failing = true;
+    assert.equal((await DashboardPage()).props.startup.savedPlayback, undefined);
+});
+
+test("dashboard sizes the hero from the saved connection, not the live playback response", () => {
     const React = nativeRequire("react");
     const { renderToStaticMarkup } = nativeRequire("react-dom/server");
     let data;
-    let isError = false;
     const Hero = ({ compact }) => React.createElement("div", { "data-compact": String(compact) });
     const Dashboard = loader({
-        "next/dynamic": { default: () => Hero },
-        "@/features/media/hooks/use-simkl": { useSimklPlayback: () => ({ data, isError }) },
-        "@/features/media/components/hero-carousel-skeleton": { HeroStartupPlaceholder: () => null },
+        "@/features/media/components/hero-carousel": { HeroCarousel: Hero },
+        "@/features/media/hooks/use-simkl": { useSimklPlayback: () => ({ data }) },
         "@/features/media/components/continue-watching": { ContinueWatching: () => null },
         "@/features/media/components/media-footer": { MediaFooter: () => null },
-        "./_components/addon-catalogs": { AddonCatalogs: () => null },
-    })("src/app/(auth)/(app)/dashboard/page.tsx").default;
-    assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="null"/);
-    isError = true;
-    assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="false"/);
-    isError = false;
-    for (const value of [
+        "./addon-catalogs": { AddonCatalogs: () => null },
+    })("src/app/(auth)/(app)/dashboard/_components/dashboard-content.tsx").DashboardContent;
+    const render = (savedPlayback) =>
+        renderToStaticMarkup(React.createElement(Dashboard, { startup: { userId: "user-a", savedPlayback } }));
+    assert.match(render(undefined), /data-compact="false"/);
+    for (const response of [
+        undefined,
+        { connected: true, items: [{ id: "saved" }] },
         { connected: false, items: [] },
-        { connected: true, items: [] },
-        { connected: false, items: [{ id: "old" }] },
     ]) {
-        data = value;
-        assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="false"/);
+        data = response;
+        assert.match(render({ connected: false, items: [] }), /data-compact="false"/);
+        assert.match(render({ connected: true, items: [] }), /data-compact="true"/);
     }
-    data = { connected: true, items: [{ id: "saved" }] };
-    assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="true"/);
+});
+
+test("saved SIMKL playback bootstraps only the matching user and still revalidates", () => {
+    let session = null;
+    const { useSimklPlayback: playbackOptions } = loader({
+        "@tanstack/react-query": { useQuery: (options) => options },
+        "@/features/auth/components/auth-provider": { useAuth: () => ({ session }) },
+    })("src/features/media/hooks/use-simkl.ts");
+    const savedPlayback = { connected: true, items: [{ id: "saved" }] };
+    const startup = { userId: "user-a", savedPlayback };
+    assert.equal(playbackOptions(startup).initialData, savedPlayback);
+    assert.equal(playbackOptions(startup).enabled, false);
+    session = { user: { id: "user-a" } };
+    assert.equal(playbackOptions(startup).initialDataUpdatedAt, 0);
+    assert.equal(playbackOptions(startup).enabled, true);
+    session = { user: { id: "user-b" } };
+    assert.deepEqual(playbackOptions(startup).queryKey, ["simkl", "user-b", "playback"]);
+    assert.equal(playbackOptions(startup).initialData, undefined);
 });
 
 test("Continue Watching removes normal explanatory copy but retains refresh failure feedback", () => {
@@ -448,6 +489,55 @@ test("SIMKL callback state is single-use, scoped to its owner, and tokens never 
     } finally {
         restore();
     }
+});
+
+test("dashboard snapshot reads only scoped, committed SIMKL playback without contacting the provider", async () => {
+    const row = {
+        connected: true,
+        reconnectRequired: false,
+        playbackCache: { stamp: "internal-stamp", items: [{ id: "saved" }], syncedAt: "2026-11-22T07:00:00Z" },
+        retryAt: new Date(Date.now() + 60_000),
+    };
+    const rows = new Map([["user-a", row]]);
+    const db = {
+        select: (fields) => {
+            assert.deepEqual(Object.keys(fields), ["connected", "reconnectRequired", "playbackCache", "retryAt"]);
+            assert.deepEqual(fields.connected, { present: "credentials" });
+            return { from: () => ({ where: ({ id }) => [rows.get(id)].filter(Boolean) }) };
+        },
+    };
+    let configured = true;
+    const { readSavedSimklPlayback } = loader({
+        "server-only": {},
+        "@/lib/db/drizzle": { db },
+        "@/lib/db/schema": { simklConnections: { credentials: "credentials", userId: "userId" } },
+        "drizzle-orm": {
+            eq: (column, id) => {
+                assert.equal(column, "userId");
+                return { id };
+            },
+            isNotNull: (present) => ({ present }),
+        },
+        "./client": {},
+        "./security": { isSimklConfigured: () => configured },
+    })("src/lib/simkl/service.ts");
+    assert.deepEqual(await readSavedSimklPlayback("user-a"), {
+        configured: true,
+        connected: true,
+        items: row.playbackCache.items,
+        syncedAt: row.playbackCache.syncedAt,
+        stale: true,
+    });
+    assert.deepEqual((await readSavedSimklPlayback("user-b")).items, []);
+    rows.set("user-b", { ...row, connected: false, reconnectRequired: true });
+    assert.deepEqual(await readSavedSimklPlayback("user-b"), {
+        configured: true,
+        connected: false,
+        items: [],
+        reconnectRequired: true,
+    });
+    configured = false;
+    assert.deepEqual(await readSavedSimklPlayback("user-a"), { configured: false, connected: false, items: [] });
 });
 
 test("SIMKL sync serializes refresh, isolates caches, gates playback on activities, and backs off", async () => {
