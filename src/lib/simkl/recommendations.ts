@@ -14,6 +14,8 @@ export const simklRecommendationQuery = z.object({
     type: z.enum(["movie", "show"]),
 });
 type RecommendationQuery = z.infer<typeof simklRecommendationQuery>;
+export const simklRatingQuery = simklRecommendationQuery.extend({ id: numericId });
+type RatingQuery = z.infer<typeof simklRatingQuery>;
 
 const idsSchema = z.object({
     simkl: numericId,
@@ -39,6 +41,10 @@ const candidateSchema = z.object({
 });
 const detailsSchema = z.object({
     ids: idsSchema,
+    ratings: z
+        .object({ imdb: z.object({ rating: z.number().positive().max(10) }) })
+        .optional()
+        .catch(undefined),
     users_recommendations: z.array(z.unknown()).catch([]),
     similar: z.array(z.unknown()).catch([]),
 });
@@ -57,6 +63,23 @@ function catalogUrl(path: string) {
 
 const headers = { "User-Agent": "DebridUI/1.0" };
 
+async function readDetails(namespace: "movies" | "tv", simklId: string, signal: AbortSignal) {
+    const response = await fetch(catalogUrl(`/${namespace}/${simklId}`), {
+        headers,
+        redirect: "error",
+        next: { revalidate: SUMMARY_TTL },
+        signal,
+    });
+    if (!response.ok) return null;
+    const parsed = detailsSchema.safeParse(await response.json());
+    return parsed.success && parsed.data.ids.simkl === simklId ? parsed.data : null;
+}
+
+export async function getSimklImdbRating({ id, type }: RatingQuery): Promise<number | null> {
+    const detail = await readDetails(type === "movie" ? "movies" : "tv", id, AbortSignal.timeout(3_000));
+    return detail?.ratings?.imdb.rating ?? null;
+}
+
 export async function getSimklRecommendations({ id, type }: RecommendationQuery): Promise<SimklRecommendation[]> {
     const namespace = type === "movie" ? "movies" : "tv";
     const simklType = type === "movie" ? "movie" : "tv";
@@ -74,19 +97,7 @@ export async function getSimklRecommendations({ id, type }: RecommendationQuery)
     const sourceId = numericId.safeParse(resolvedId);
     if (resolvedNamespace !== namespace || !sourceId.success) return [];
 
-    const readDetails = async (simklId: string) => {
-        const response = await fetch(catalogUrl(`/${namespace}/${simklId}`), {
-            headers,
-            redirect: "error",
-            next: { revalidate: SUMMARY_TTL },
-            signal,
-        });
-        if (!response.ok) return null;
-        const parsed = detailsSchema.safeParse(await response.json());
-        return parsed.success && parsed.data.ids.simkl === simklId ? parsed.data : null;
-    };
-
-    const details = await readDetails(sourceId.data);
+    const details = await readDetails(namespace, sourceId.data, signal);
     if (!details || (details.ids[idKind] && details.ids[idKind] !== id)) return [];
 
     function parseCandidates(entries: unknown[]) {
@@ -108,11 +119,14 @@ export async function getSimklRecommendations({ id, type }: RecommendationQuery)
         [...similar, ...community].filter(({ ids }) => ids.imdb || ids.tmdb).map(({ ids }) => [ids.simkl, ids])
     );
     const missingIds = [...new Set(community.map(({ ids }) => ids.simkl).filter((key) => !resolvedIds.has(key)))];
+    const knownRatings = new Map<string, number>();
     // Community picks sometimes include only a SIMKL ID. Look up a bounded number of top entries.
     await Promise.all(
         missingIds.slice(0, COMMUNITY_LOOKUP_LIMIT).map(async (key) => {
-            const entry = await readDetails(key).catch(() => null);
-            if (entry) resolvedIds.set(key, entry.ids);
+            const entry = await readDetails(namespace, key, signal).catch(() => null);
+            if (!entry) return;
+            resolvedIds.set(key, entry.ids);
+            if (entry.ratings) knownRatings.set(key, entry.ratings.imdb.rating);
         })
     );
 
@@ -131,11 +145,13 @@ export async function getSimklRecommendations({ id, type }: RecommendationQuery)
             media: {
                 title: candidate.title,
                 year: candidate.year,
+                rating: knownRatings.get(ids.simkl),
                 ids: { slug: ids.tmdb ?? ids.imdb, imdb: ids.imdb },
                 images: candidate.poster
                     ? { poster: [cdnUrl(`https://simkl.in/posters/${candidate.poster}_m.webp`, { q: 90 })] }
                     : undefined,
             },
+            simklId: ids.simkl,
             simklUrl: `https://simkl.com/${namespace}/${ids.simkl}${slug ? `/${slug}` : ""}`,
         });
         if (items.length >= LIMIT) break;

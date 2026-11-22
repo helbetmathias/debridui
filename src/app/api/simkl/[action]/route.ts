@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getSimklRecommendations, simklRecommendationQuery } from "@/lib/simkl/recommendations";
+import {
+    getSimklImdbRating,
+    getSimklRecommendations,
+    simklRatingQuery,
+    simklRecommendationQuery,
+} from "@/lib/simkl/recommendations";
 import { isSimklConfigured, simklConfig } from "@/lib/simkl/security";
 import {
     connectionStatus,
@@ -20,8 +25,10 @@ export async function GET(request: NextRequest, context: Context) {
     const { action } = await context.params;
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) return json({ error: "Sign in required" }, 401);
-    if (!isSimklConfigured())
+    if (!isSimklConfigured()) {
+        if (action === "rating") return json(null);
         return json(action === "recommendations" ? [] : { configured: false, connected: false, items: [] });
+    }
     if (action === "callback") {
         const config = simklConfig();
         let result = "failed";
@@ -59,6 +66,15 @@ export async function GET(request: NextRequest, context: Context) {
             if (!query.success) return json({ error: "Invalid media identifier or type" }, 400);
             const status = await connectionStatus(session.user.id);
             return json(status.connected && !status.reconnectRequired ? await getSimklRecommendations(query.data) : []);
+        }
+        if (action === "rating") {
+            const query = simklRatingQuery.safeParse({
+                id: request.nextUrl.searchParams.get("id"),
+                type: request.nextUrl.searchParams.get("type"),
+            });
+            if (!query.success) return json({ error: "Invalid SIMKL identifier or type" }, 400);
+            const status = await connectionStatus(session.user.id);
+            return json(status.connected && !status.reconnectRequired ? await getSimklImdbRating(query.data) : null);
         }
         return json({ error: "Not found" }, 404);
     } catch {

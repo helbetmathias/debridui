@@ -2,6 +2,7 @@ import type { Media } from "@/lib/media";
 
 export interface SimklRecommendation {
     media: Media;
+    simklId: string;
     simklUrl: string;
 }
 

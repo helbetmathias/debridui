@@ -29,6 +29,20 @@ export function useSimklRecommendations(id: string, type: "movie" | "show", enab
     };
 }
 
+export function useSimklImdbRating(id: string, type: "movie" | "show", enabled: boolean) {
+    const { session } = useAuth();
+    const userId = session?.user.id;
+    return useQuery({
+        queryKey: ["simkl", userId, "imdb-rating", type, id],
+        queryFn: ({ signal }) => read<number | null>(`rating?${new URLSearchParams({ id, type })}`, signal),
+        enabled: enabled && !!userId && !!id,
+        staleTime: 6 * 60 * 60_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+    }).data;
+}
+
 export function useSimklStatus() {
     const { session } = useAuth();
     return useQuery({

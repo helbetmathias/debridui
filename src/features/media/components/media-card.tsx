@@ -3,7 +3,7 @@
 import { Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useState } from "react";
+import { type ComponentProps, memo, useState } from "react";
 import type { Media } from "@/lib/media";
 import { getPosterUrl } from "@/lib/media/images";
 import { cn } from "@/lib/utils";
@@ -13,9 +13,18 @@ interface MediaCardProps {
     type: "movie" | "show";
     rank?: number;
     className?: string;
+    ratingLabel?: string;
+    linkEvents?: Pick<ComponentProps<typeof Link>, "onPointerEnter" | "onPointerLeave" | "onFocus">;
 }
 
-export const MediaCard = memo(function MediaCard({ media, type, rank, className }: MediaCardProps) {
+export const MediaCard = memo(function MediaCard({
+    media,
+    type,
+    rank,
+    className,
+    ratingLabel,
+    linkEvents,
+}: MediaCardProps) {
     const [imgError, setImgError] = useState(false);
     const slug = media.ids?.slug || media.ids?.imdb;
     const linkHref = slug ? `/${type}s/${slug}` : "#";
@@ -23,7 +32,7 @@ export const MediaCard = memo(function MediaCard({ media, type, rank, className 
     const posterUrl = imgError ? placeholderUrl : getPosterUrl(media.images) || placeholderUrl;
 
     return (
-        <Link href={linkHref} className="block group">
+        <Link href={linkHref} className="block group" {...linkEvents}>
             <div
                 className={cn(
                     "relative overflow-hidden transition-transform duration-300 ease-out hover:scale-hover [content-visibility:auto] [contain-intrinsic-size:120px_180px]",
@@ -50,11 +59,10 @@ export const MediaCard = memo(function MediaCard({ media, type, rank, className 
                         </div>
                     )}
 
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    {/* Hover and keyboard focus overlay */}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300" />
 
-                    {/* Content on hover */}
-                    <div className="absolute inset-x-0 bottom-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                    <div className="absolute inset-x-0 bottom-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 transition-all duration-300">
                         <h3 className="font-light text-sm text-white leading-tight line-clamp-2 mb-1.5">
                             {media.title}
                         </h3>
@@ -64,7 +72,8 @@ export const MediaCard = memo(function MediaCard({ media, type, rank, className 
                             {!!media.rating && (
                                 <>
                                     <span className="text-white/30">·</span>
-                                    <span className="flex items-center gap-1">
+                                    <span className="flex items-center gap-1" title={ratingLabel}>
+                                        {ratingLabel && <span className="sr-only">{ratingLabel}: </span>}
                                         <Star className="size-3 fill-[#F5C518] text-[#F5C518] -translate-y-px" />
                                         {media.rating.toFixed(1)}
                                     </span>

@@ -715,13 +715,22 @@ test("SIMKL recommendations preserve community order, resolve linkable IDs, and 
                 ],
             });
         }
-        if (url.pathname === "/tv/2") return Response.json({ ids: { simkl: 2, tmdb: 200 } });
+        if (url.pathname === "/tv/2")
+            return Response.json({ ids: { simkl: 2, tmdb: 200 }, ratings: { imdb: { rating: 7.8 } } });
         return new Response(null, { status: 404 });
     };
     try {
         const { getSimklRecommendations } = loader({ "server-only": {} })("src/lib/simkl/recommendations.ts");
         const result = await getSimklRecommendations({ id: "100", type: "show" });
         assert.deepEqual(requests, ["/redirect", "/tv/1", "/tv/2", "/tv/4", "/tv/5", "/tv/6"]);
+        assert.deepEqual(
+            result.map(({ simklId }) => simklId),
+            ["2", "3", "13"]
+        );
+        assert.deepEqual(
+            result.map(({ media }) => media.rating),
+            [7.8, undefined, undefined]
+        );
         assert.deepEqual(
             result.map(({ media }) => media.ids.slug),
             ["200", "tt0000003", "tt0000013"]
@@ -768,7 +777,41 @@ test("SIMKL recommendations never follow lookups to an unexpected host or media 
     }
 });
 
-test("SIMKL recommendations route gates catalog reads on the signed-in user's connection", async () => {
+test("SIMKL IMDb rating lookup uses cached public details and never substitutes another score", async () => {
+    const restore = simklTestEnvironment();
+    const originalFetch = globalThis.fetch;
+    const { getSimklImdbRating } = loader({ "server-only": {} })("src/lib/simkl/recommendations.ts");
+    try {
+        const cases = [
+            { type: "movie", namespace: "movies", id: 42, imdb: { rating: 8.3 }, expected: 8.3 },
+            { type: "show", namespace: "tv", id: 42, imdb: { rating: 6.7 }, expected: 6.7 },
+            { type: "show", namespace: "tv", id: 42, imdb: undefined, expected: null },
+            { type: "show", namespace: "tv", id: 42, imdb: { rating: 11 }, expected: null },
+            { type: "show", namespace: "tv", id: 42, imdb: { rating: 0 }, expected: null },
+            { type: "show", namespace: "tv", id: 43, imdb: { rating: 9.1 }, expected: null },
+        ];
+        for (const sample of cases) {
+            globalThis.fetch = async (input, options) => {
+                const url = new URL(input);
+                assert.equal(url.origin, "https://api.simkl.com");
+                assert.equal(url.pathname, `/${sample.namespace}/42`);
+                assert.equal(options.redirect, "error");
+                assert.ok(options.next.revalidate > 0);
+                assert.equal(new Headers(options.headers).has("authorization"), false);
+                return Response.json({
+                    ids: { simkl: sample.id },
+                    ratings: { imdb: sample.imdb, simkl: { rating: 9.5 } },
+                });
+            };
+            assert.equal(await getSimklImdbRating({ id: "42", type: sample.type }), sample.expected);
+        }
+    } finally {
+        globalThis.fetch = originalFetch;
+        restore();
+    }
+});
+
+test("SIMKL recommendation and rating routes gate catalog reads on the signed-in user's connection", async () => {
     const restore = simklTestEnvironment();
     const { NextRequest } = nativeRequire("next/server");
     const calls = [];
@@ -793,26 +836,42 @@ test("SIMKL recommendations route gates catalog reads on the signed-in user's co
                 if (unavailable) throw new Error("do not expose provider errors");
                 return [{ media: { title: "SIMKL pick" }, simklUrl: "https://simkl.com/movies/1/pick" }];
             },
+            getSimklImdbRating: async (params) => {
+                calls.push(params);
+                return 8.1;
+            },
         },
     })("src/app/api/simkl/[action]/route.ts");
     const get = (params = "id=tt0000001&type=movie&userId=other-user") =>
         route.GET(new NextRequest(`http://localhost:3000/api/simkl/recommendations?${params}`), {
             params: Promise.resolve({ action: "recommendations" }),
         });
+    const rating = (params = "id=42&type=show&userId=other-user") =>
+        route.GET(new NextRequest(`http://localhost:3000/api/simkl/rating?${params}`), {
+            params: Promise.resolve({ action: "rating" }),
+        });
     try {
         assert.equal((await get()).status, 401);
+        assert.equal((await rating()).status, 401);
         session = { user: { id: "current-user" } };
         assert.equal((await get("id=not-a-media-id&type=movie")).status, 400);
+        assert.equal((await rating("id=tt0000001&type=show")).status, 400);
         assert.deepEqual(calls, []);
         assert.deepEqual(await (await get()).json(), []);
+        assert.equal(await (await rating()).json(), null);
         status = { configured: true, connected: true, reconnectRequired: true };
         assert.deepEqual(await (await get()).json(), []);
-        assert.deepEqual(calls, ["current-user", "current-user"]);
+        assert.equal(await (await rating()).json(), null);
+        assert.deepEqual(calls, Array(4).fill("current-user"));
         status = { configured: true, connected: true };
         const response = await get();
         assert.equal(response.headers.get("cache-control"), "private, no-store");
         assert.equal((await response.json())[0].media.title, "SIMKL pick");
         assert.deepEqual(calls.slice(-2), ["current-user", { id: "tt0000001", type: "movie" }]);
+        const score = await rating();
+        assert.equal(score.headers.get("cache-control"), "private, no-store");
+        assert.equal(await score.json(), 8.1);
+        assert.deepEqual(calls.slice(-2), ["current-user", { id: "42", type: "show" }]);
         unavailable = true;
         const error = await get();
         assert.equal(error.status, 503);
