@@ -19,7 +19,7 @@ A modern debrid client for managing your files, discovering trending movies and 
 This is a customized fork of [viperadnan-git/debridui](https://github.com/viperadnan-git/debridui). It keeps the original DebridUI experience and regularly incorporates upstream improvements, while adding the following features:
 
 - **TMDB-first media discovery** - Discovery, search, metadata, cast, seasons, and episodes use TMDB through an authenticated server-side proxy. Both TMDB API keys and Read Access Tokens are supported.
-- **More Like This** - Movie and TV detail pages include lazy-loaded TMDB recommendations after Cast & Crew, with similar titles used as a fallback.
+- **More Like This** - Movie and TV detail pages lazily load recommendations after Cast & Crew. Connected SIMKL accounts see community picks and similar titles from SIMKL when available, with TMDB as the fallback.
 - **Synced catalogue controls** - Every catalogue declared by an enabled Stremio addon can be shown or hidden from the dashboard. Preferences are saved per account and synchronized across devices. Hidden catalogues are only fetched if selected as a hero source.
 - **Addon capability overview** - The Addons page identifies whether each addon provides catalogues, streams, metadata, or subtitles.
 - **Local search history** - Recent searches stay in the current browser, not in a synced watch history.

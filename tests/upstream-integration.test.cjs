@@ -672,6 +672,156 @@ test("SIMKL provider sends only server-side credentials, read-only calls, and sa
     }
 });
 
+test("SIMKL recommendations preserve community order, resolve linkable IDs, and fill with genre picks", async () => {
+    const restore = simklTestEnvironment();
+    const originalFetch = globalThis.fetch;
+    const requests = [];
+    const item = (simkl, ids = {}, type = "tv", poster = "74/abc123") => ({
+        ids: { simkl, slug: `item-${simkl}`, ...ids },
+        title: `Item ${simkl}`,
+        poster,
+        year: 2024,
+        type,
+    });
+    globalThis.fetch = async (input, options) => {
+        const url = new URL(input);
+        requests.push(url.pathname);
+        assert.equal(url.origin, "https://api.simkl.com");
+        assert.equal(url.searchParams.get("client_id"), "test-client");
+        assert.equal(url.searchParams.get("app-name"), "debridui");
+        assert.ok(url.searchParams.get("app-version"));
+        assert.ok(options.headers["User-Agent"]);
+        assert.equal(new Headers(options.headers).has("authorization"), false);
+        assert.ok(options.signal);
+        if (url.pathname === "/redirect") {
+            assert.equal(options.redirect, "manual");
+            assert.equal(url.searchParams.get("type"), "tv");
+            assert.equal(url.searchParams.get("tmdb"), "100");
+            return Response.redirect("https://simkl.com/tv/1/source", 301);
+        }
+        assert.equal(options.redirect, "error");
+        assert.ok(options.next.revalidate > 0);
+        if (url.pathname === "/tv/1") {
+            return Response.json({
+                ids: { simkl: 1, imdb: "tt0000001", tmdb: "100" },
+                users_recommendations: [item(2), item(3), item(4), item(5), item(6), item(7), item(8)],
+                similar: [
+                    item(3, { imdb: "tt0000003" }, "show"),
+                    item(10, { tmdb: "100" }),
+                    item(11, { tmdb: "200" }),
+                    item(12, { tmdb: "120" }, "anime"),
+                    item(13, { imdb: "tt0000013" }, "tv", "../invalid"),
+                    item(14, {}, "tv"),
+                ],
+            });
+        }
+        if (url.pathname === "/tv/2") return Response.json({ ids: { simkl: 2, tmdb: 200 } });
+        return new Response(null, { status: 404 });
+    };
+    try {
+        const { getSimklRecommendations } = loader({ "server-only": {} })("src/lib/simkl/recommendations.ts");
+        const result = await getSimklRecommendations({ id: "100", type: "show" });
+        assert.deepEqual(requests, ["/redirect", "/tv/1", "/tv/2", "/tv/4", "/tv/5", "/tv/6"]);
+        assert.deepEqual(
+            result.map(({ media }) => media.ids.slug),
+            ["200", "tt0000003", "tt0000013"]
+        );
+        assert.deepEqual(
+            result.map(({ simklUrl }) => simklUrl),
+            [2, 3, 13].map((id) => `https://simkl.com/tv/${id}/item-${id}`)
+        );
+        assert.equal(
+            new URL(result[0].media.images.poster[0]).searchParams.get("url"),
+            "https://simkl.in/posters/74/abc123_m.webp"
+        );
+        assert.equal(result[2].media.images, undefined);
+    } finally {
+        globalThis.fetch = originalFetch;
+        restore();
+    }
+});
+
+test("SIMKL recommendations never follow lookups to an unexpected host or media type", async () => {
+    const restore = simklTestEnvironment();
+    const originalFetch = globalThis.fetch;
+    try {
+        const { getSimklRecommendations } = loader({ "server-only": {} })("src/lib/simkl/recommendations.ts");
+        for (const location of [
+            "https://example.com/movies/1/test",
+            "https://simkl.com/tv/1/test",
+            "https://simkl.com/search/1",
+        ]) {
+            let callCount = 0;
+            globalThis.fetch = async (input) => {
+                const url = new URL(input);
+                assert.equal(url.pathname, "/redirect");
+                assert.equal(url.searchParams.get("imdb"), "tt0000001");
+                callCount++;
+                return Response.redirect(location, 301);
+            };
+            assert.deepEqual(await getSimklRecommendations({ id: "tt0000001", type: "movie" }), []);
+            assert.equal(callCount, 1);
+        }
+    } finally {
+        globalThis.fetch = originalFetch;
+        restore();
+    }
+});
+
+test("SIMKL recommendations route gates catalog reads on the signed-in user's connection", async () => {
+    const restore = simklTestEnvironment();
+    const { NextRequest } = nativeRequire("next/server");
+    const calls = [];
+    let session = null;
+    let status = { configured: true, connected: false };
+    let unavailable = false;
+    const lib = loader({ "server-only": {} })("src/lib/simkl/recommendations.ts");
+    const route = loader({
+        "server-only": {},
+        "@/lib/auth": { auth: { api: { getSession: async () => session } } },
+        "@/lib/simkl/service": {
+            connectionStatus: async (id) => {
+                calls.push(id);
+                return status;
+            },
+            getSimklPlayback: () => assert.fail("must not read playback"),
+        },
+        "@/lib/simkl/recommendations": {
+            ...lib,
+            getSimklRecommendations: async (params) => {
+                calls.push(params);
+                if (unavailable) throw new Error("do not expose provider errors");
+                return [{ media: { title: "SIMKL pick" }, simklUrl: "https://simkl.com/movies/1/pick" }];
+            },
+        },
+    })("src/app/api/simkl/[action]/route.ts");
+    const get = (params = "id=tt0000001&type=movie&userId=other-user") =>
+        route.GET(new NextRequest(`http://localhost:3000/api/simkl/recommendations?${params}`), {
+            params: Promise.resolve({ action: "recommendations" }),
+        });
+    try {
+        assert.equal((await get()).status, 401);
+        session = { user: { id: "current-user" } };
+        assert.equal((await get("id=not-a-media-id&type=movie")).status, 400);
+        assert.deepEqual(calls, []);
+        assert.deepEqual(await (await get()).json(), []);
+        status = { configured: true, connected: true, reconnectRequired: true };
+        assert.deepEqual(await (await get()).json(), []);
+        assert.deepEqual(calls, ["current-user", "current-user"]);
+        status = { configured: true, connected: true };
+        const response = await get();
+        assert.equal(response.headers.get("cache-control"), "private, no-store");
+        assert.equal((await response.json())[0].media.title, "SIMKL pick");
+        assert.deepEqual(calls.slice(-2), ["current-user", { id: "tt0000001", type: "movie" }]);
+        unavailable = true;
+        const error = await get();
+        assert.equal(error.status, 503);
+        assert.doesNotMatch(await error.text(), /do not expose/);
+    } finally {
+        restore();
+    }
+});
+
 test("SIMKL retains refreshed credentials after a failed read and persists revoked-account reconnect state", async () => {
     const restore = simklTestEnvironment();
     const database = simklDatabase();

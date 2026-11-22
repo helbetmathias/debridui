@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getSimklRecommendations, simklRecommendationQuery } from "@/lib/simkl/recommendations";
 import { isSimklConfigured, simklConfig } from "@/lib/simkl/security";
 import {
     connectionStatus,
@@ -19,7 +20,8 @@ export async function GET(request: NextRequest, context: Context) {
     const { action } = await context.params;
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) return json({ error: "Sign in required" }, 401);
-    if (!isSimklConfigured()) return json({ configured: false, connected: false, items: [] });
+    if (!isSimklConfigured())
+        return json(action === "recommendations" ? [] : { configured: false, connected: false, items: [] });
     if (action === "callback") {
         const config = simklConfig();
         let result = "failed";
@@ -49,6 +51,15 @@ export async function GET(request: NextRequest, context: Context) {
     try {
         if (action === "status") return json(await connectionStatus(session.user.id));
         if (action === "playback") return json(await getSimklPlayback(session.user.id));
+        if (action === "recommendations") {
+            const query = simklRecommendationQuery.safeParse({
+                id: request.nextUrl.searchParams.get("id"),
+                type: request.nextUrl.searchParams.get("type"),
+            });
+            if (!query.success) return json({ error: "Invalid media identifier or type" }, 400);
+            const status = await connectionStatus(session.user.id);
+            return json(status.connected && !status.reconnectRequired ? await getSimklRecommendations(query.data) : []);
+        }
         return json({ error: "Not found" }, 404);
     } catch {
         return json({ error: "SIMKL connection is temporarily unavailable" }, 503);

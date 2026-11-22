@@ -1,3 +1,10 @@
+import type { Media } from "@/lib/media";
+
+export interface SimklRecommendation {
+    media: Media;
+    simklUrl: string;
+}
+
 /** Public playback data only. OAuth credentials never leave the server. */
 export interface SimklPlaybackItem {
     id: string;

@@ -1,11 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/components/auth-provider";
-import type { SimklPlayback, SimklStatus } from "@/lib/simkl/types";
+import type { SimklPlayback, SimklRecommendation, SimklStatus } from "@/lib/simkl/types";
 
-async function read<T>(action: string): Promise<T> {
-    const response = await fetch(`/api/simkl/${action}`, { cache: "no-store" });
+async function read<T>(action: string, signal?: AbortSignal): Promise<T> {
+    const response = await fetch(`/api/simkl/${action}`, { cache: "no-store", signal });
     if (!response.ok) throw new Error("SIMKL is temporarily unavailable");
     return response.json();
+}
+
+export function useSimklRecommendations(id: string, type: "movie" | "show", enabled: boolean) {
+    const { session, isLoading } = useAuth();
+    const userId = session?.user.id;
+    const supportedId = /^(?:tt[0-9]{1,12}|[1-9][0-9]{0,10})$/.test(id);
+    const query = useQuery({
+        queryKey: ["simkl", userId, "recommendations", type, id],
+        queryFn: ({ signal }) => {
+            const params = new URLSearchParams({ id, type });
+            return read<SimklRecommendation[]>(`recommendations?${params}`, signal);
+        },
+        enabled: enabled && supportedId && !!userId,
+        staleTime: (query) => (query.state.data?.length ? 6 * 60 * 60_000 : 60_000),
+        retry: false,
+        refetchOnWindowFocus: false,
+    });
+    return {
+        items: userId && !query.isError ? query.data : undefined,
+        isPending: enabled && supportedId && (userId ? query.isPending && !query.isPaused : isLoading),
+    };
 }
 
 export function useSimklStatus() {
