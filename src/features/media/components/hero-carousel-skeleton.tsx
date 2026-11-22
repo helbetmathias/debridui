@@ -4,6 +4,17 @@ import { memo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+export function HeroStartupPlaceholder() {
+    return (
+        <div className="-mx-4 -mt-6 lg:-mx-6 relative h-80 md:h-auto md:aspect-[5/2] md:min-h-[360px] md:max-h-[900px]">
+            <Skeleton className="absolute inset-0 rounded-none motion-reduce:animate-none" />
+            <span className="sr-only" role="status">
+                Loading featured titles
+            </span>
+        </div>
+    );
+}
+
 export const HeroCarouselSkeleton = memo(function HeroCarouselSkeleton({ compact = false }: { compact?: boolean }) {
     return (
         <div className="-mx-4 -mt-6 lg:-mx-6 relative">

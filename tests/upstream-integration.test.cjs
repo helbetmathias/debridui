@@ -27,6 +27,9 @@ test("hero artwork stays static on desktop and mobile in both full and compact l
             }),
         },
     })("src/features/media/components/hero-carousel.tsx").HeroCarousel;
+    const pending = renderToStaticMarkup(React.createElement(Hero, { compact: null }));
+    assert.match(pending, /Loading featured titles/);
+    assert.doesNotMatch(pending, /data-hero-layout|<img\b/);
     for (const compact of [false, true]) {
         const markup = renderToStaticMarkup(React.createElement(Hero, { compact }));
         assert.equal((markup.match(/<img\b/g) || []).length, 4);
@@ -36,21 +39,25 @@ test("hero artwork stays static on desktop and mobile in both full and compact l
     }
 });
 
-test("dashboard uses the full hero without saved playbacks and a compact layout only with real progress", () => {
+test("dashboard keeps the hero pending until playback is known and sizes it from the first result", () => {
     const React = nativeRequire("react");
     const { renderToStaticMarkup } = nativeRequire("react-dom/server");
     let data;
+    let isError = false;
     const Hero = ({ compact }) => React.createElement("div", { "data-compact": String(compact) });
     const Dashboard = loader({
         "next/dynamic": { default: () => Hero },
-        "@/features/media/hooks/use-simkl": { useSimklPlayback: () => ({ data }) },
-        "@/features/media/components/hero-carousel-skeleton": { HeroCarouselSkeleton: () => null },
+        "@/features/media/hooks/use-simkl": { useSimklPlayback: () => ({ data, isError }) },
+        "@/features/media/components/hero-carousel-skeleton": { HeroStartupPlaceholder: () => null },
         "@/features/media/components/continue-watching": { ContinueWatching: () => null },
         "@/features/media/components/media-footer": { MediaFooter: () => null },
         "./_components/addon-catalogs": { AddonCatalogs: () => null },
     })("src/app/(auth)/(app)/dashboard/page.tsx").default;
+    assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="null"/);
+    isError = true;
+    assert.match(renderToStaticMarkup(React.createElement(Dashboard)), /data-compact="false"/);
+    isError = false;
     for (const value of [
-        undefined,
         { connected: false, items: [] },
         { connected: true, items: [] },
         { connected: false, items: [{ id: "old" }] },
@@ -68,16 +75,15 @@ test("Continue Watching removes normal explanatory copy but retains refresh fail
     let stale = false;
     const ContinueWatching = loader({
         "embla-carousel-react": { default: () => [() => {}, undefined] },
-        "@/features/media/hooks/use-simkl": {
-            useSimklPlayback: () => ({
-                data: { connected: true, items: [{ id: "saved" }], stale },
-                isLoading: false,
-                refetch: () => {},
-            }),
-        },
         "./continue-watching-card": { ContinueWatchingCard: () => React.createElement("p", null, "Saved movie") },
     })("src/features/media/components/continue-watching.tsx").ContinueWatching;
-    const render = () => renderToStaticMarkup(React.createElement(ContinueWatching));
+    const render = () =>
+        renderToStaticMarkup(
+            React.createElement(ContinueWatching, {
+                playback: { data: { connected: true, items: [{ id: "saved" }], stale }, refetch: () => {} },
+            })
+        );
+    assert.equal(renderToStaticMarkup(React.createElement(ContinueWatching, { playback: { isFetching: true } })), "");
     const regular = render();
     assert.doesNotMatch(regular, /Saved progress from your connected scrobblers|Resume selects a fresh source/);
     assert.match(regular, /basis-\[208px\]/);
