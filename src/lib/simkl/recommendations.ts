@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { cdnUrl } from "@/lib/media/images";
 import { simklConfig } from "./security";
-import type { SimklRecommendation } from "./types";
+import type { SimklRecommendation, SimklTitleRating } from "./types";
 
 const imdbId = z.string().regex(/^tt[0-9]{1,12}$/);
 const numericId = z
@@ -80,25 +80,44 @@ export async function getSimklImdbRating({ id, type }: RatingQuery): Promise<num
     return detail?.ratings?.imdb.rating ?? null;
 }
 
-export async function getSimklRecommendations({ id, type }: RecommendationQuery): Promise<SimklRecommendation[]> {
-    const namespace = type === "movie" ? "movies" : "tv";
-    const simklType = type === "movie" ? "movie" : "tv";
-    const signal = AbortSignal.timeout(3_000);
+async function readByExternalId({ id, type }: RecommendationQuery, signal: AbortSignal) {
+    const namespace: "movies" | "tv" = type === "movie" ? "movies" : "tv";
+    const simklType: "movie" | "tv" = type === "movie" ? "movie" : "tv";
     const lookup = catalogUrl("/redirect");
-    const idKind = id.startsWith("tt") ? "imdb" : "tmdb";
+    const idKind: "imdb" | "tmdb" = id.startsWith("tt") ? "imdb" : "tmdb";
     lookup.searchParams.set("to", "simkl");
     lookup.searchParams.set("type", simklType);
     lookup.searchParams.set(idKind, id);
     const redirect = await fetch(lookup, { headers, redirect: "manual", cache: "no-store", signal });
-    if (redirect.status !== 301) return [];
+    if (redirect.status !== 301) return null;
     const location = new URL(redirect.headers.get("Location") ?? "", "https://api.simkl.com");
-    if (location.origin !== "https://simkl.com") return [];
+    if (location.origin !== "https://simkl.com") return null;
     const [, resolvedNamespace, resolvedId] = location.pathname.split("/");
     const sourceId = numericId.safeParse(resolvedId);
-    if (resolvedNamespace !== namespace || !sourceId.success) return [];
+    if (resolvedNamespace !== namespace || !sourceId.success) return null;
 
     const details = await readDetails(namespace, sourceId.data, signal);
-    if (!details || (details.ids[idKind] && details.ids[idKind] !== id)) return [];
+    if (!details || (details.ids[idKind] && details.ids[idKind] !== id)) return null;
+    return { details, namespace, simklType, idKind };
+}
+
+export async function getSimklTitleImdbRating(query: RecommendationQuery): Promise<SimklTitleRating | null> {
+    const result = await readByExternalId(query, AbortSignal.timeout(3_000));
+    if (!result?.details.ratings || result.details.ids[result.idKind] !== query.id) return null;
+    const { ratings, ids } = result.details;
+    return { rating: ratings.imdb.rating, simklUrl: simklTitleUrl(result.namespace, ids.simkl, ids.slug) };
+}
+
+function simklTitleUrl(namespace: "movies" | "tv", id: string, slug?: string) {
+    return `https://simkl.com/${namespace}/${id}${slug ? `/${slug}` : ""}`;
+}
+
+export async function getSimklRecommendations(query: RecommendationQuery): Promise<SimklRecommendation[]> {
+    const signal = AbortSignal.timeout(3_000);
+    const result = await readByExternalId(query, signal);
+    if (!result) return [];
+    const { id } = query;
+    const { details, namespace, simklType, idKind } = result;
 
     function parseCandidates(entries: unknown[]) {
         return entries.slice(0, 50).flatMap((entry) => {
@@ -106,7 +125,7 @@ export async function getSimklRecommendations({ id, type }: RecommendationQuery)
             if (
                 !candidate.success ||
                 (candidate.data.type === "show" ? "tv" : candidate.data.type) !== simklType ||
-                candidate.data.ids.simkl === sourceId.data
+                candidate.data.ids.simkl === details.ids.simkl
             )
                 return [];
             return [candidate.data];
@@ -152,7 +171,7 @@ export async function getSimklRecommendations({ id, type }: RecommendationQuery)
                     : undefined,
             },
             simklId: ids.simkl,
-            simklUrl: `https://simkl.com/${namespace}/${ids.simkl}${slug ? `/${slug}` : ""}`,
+            simklUrl: simklTitleUrl(namespace, ids.simkl, slug),
         });
         if (items.length >= LIMIT) break;
     }

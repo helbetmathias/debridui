@@ -1,7 +1,6 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Star } from "lucide-react";
 import { memo } from "react";
 import { type MediaSeason, mediaClient } from "@/lib/media";
 import { getPosterUrl } from "@/lib/media/images";
@@ -95,21 +94,10 @@ export const SeasonCard = memo(function SeasonCard({
                     </div>
 
                     {/* Meta row */}
-                    {(!!season.episode_count || !!season.rating) && (
-                        <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-white">
-                            {!!season.episode_count && (
-                                <span className="tabular-nums">
-                                    {season.episode_count}
-                                    <span className="text-white/55"> ep</span>
-                                </span>
-                            )}
-                            {!!season.episode_count && !!season.rating && <span className="text-white/30">·</span>}
-                            {!!season.rating && (
-                                <span className="inline-flex items-center gap-1">
-                                    <Star className="size-3 fill-[#F5C518] text-[#F5C518] -translate-y-px" />
-                                    <span className="tabular-nums">{season.rating.toFixed(1)}</span>
-                                </span>
-                            )}
+                    {!!season.episode_count && (
+                        <div className="text-[10px] sm:text-[11px] text-white tabular-nums">
+                            {season.episode_count}
+                            <span className="text-white/55"> ep</span>
                         </div>
                     )}
                 </div>

@@ -59,10 +59,17 @@ interface EpisodeCardProps {
     episode: MediaEpisode;
     className?: string;
     imdbId?: string;
+    imdbRating?: number;
     showMedia?: MediaDetails;
 }
 
-export const EpisodeCard = memo(function EpisodeCard({ episode, className, imdbId, showMedia }: EpisodeCardProps) {
+export const EpisodeCard = memo(function EpisodeCard({
+    episode,
+    className,
+    imdbId,
+    imdbRating,
+    showMedia,
+}: EpisodeCardProps) {
     const [isOpen, setIsOpen] = useState(false);
 
     const episodeLabel = String(episode.number).padStart(2, "0");
@@ -127,15 +134,21 @@ export const EpisodeCard = memo(function EpisodeCard({ episode, className, imdbI
                             </div>
 
                             {/* Meta row — rating · date · runtime */}
-                            {(!!episode.rating || episode.first_aired || episode.runtime) && (
+                            {(!!imdbRating || episode.first_aired || episode.runtime) && (
                                 <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px] text-muted-foreground">
-                                    {!!episode.rating && (
-                                        <span className="inline-flex items-center gap-1 text-foreground/80">
-                                            <Star className="size-3 fill-[#F5C518] text-[#F5C518] -translate-y-px" />
-                                            <span className="tabular-nums">{episode.rating.toFixed(1)}</span>
+                                    {!!imdbRating && (
+                                        <span
+                                            className="inline-flex items-center gap-1 text-foreground/80"
+                                            title="IMDb rating via OMDb">
+                                            <Star
+                                                className="size-3 fill-[#F5C518] text-[#F5C518] -translate-y-px"
+                                                aria-hidden="true"
+                                            />
+                                            <span className="tabular-nums">{imdbRating.toFixed(1)}</span>
+                                            <span className="text-muted-foreground">IMDb</span>
                                         </span>
                                     )}
-                                    {!!episode.rating && (episode.first_aired || episode.runtime) && (
+                                    {!!imdbRating && (episode.first_aired || episode.runtime) && (
                                         <span className="text-border">·</span>
                                     )}
                                     {episode.first_aired && (

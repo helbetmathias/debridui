@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import {
     getSimklImdbRating,
     getSimklRecommendations,
+    getSimklTitleImdbRating,
     simklRatingQuery,
     simklRecommendationQuery,
 } from "@/lib/simkl/recommendations";
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest, context: Context) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) return json({ error: "Sign in required" }, 401);
     if (!isSimklConfigured()) {
-        if (action === "rating") return json(null);
+        if (action === "rating" || action === "title-rating") return json(null);
         return json(action === "recommendations" ? [] : { configured: false, connected: false, items: [] });
     }
     if (action === "callback") {
@@ -58,14 +59,16 @@ export async function GET(request: NextRequest, context: Context) {
     try {
         if (action === "status") return json(await connectionStatus(session.user.id));
         if (action === "playback") return json(await getSimklPlayback(session.user.id));
-        if (action === "recommendations") {
+        if (action === "recommendations" || action === "title-rating") {
             const query = simklRecommendationQuery.safeParse({
                 id: request.nextUrl.searchParams.get("id"),
                 type: request.nextUrl.searchParams.get("type"),
             });
             if (!query.success) return json({ error: "Invalid media identifier or type" }, 400);
             const status = await connectionStatus(session.user.id);
-            return json(status.connected && !status.reconnectRequired ? await getSimklRecommendations(query.data) : []);
+            const connected = status.connected && !status.reconnectRequired;
+            if (action === "title-rating") return json(connected ? await getSimklTitleImdbRating(query.data) : null);
+            return json(connected ? await getSimklRecommendations(query.data) : []);
         }
         if (action === "rating") {
             const query = simklRatingQuery.safeParse({

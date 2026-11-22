@@ -90,6 +90,8 @@ See [`.env.example`](.env.example) for all available environment variables and t
 Media discovery uses TMDB. Add an API key or API Read Access Token under **Settings → API Keys**, or configure
 `TMDB_API_READ_TOKEN`/`TMDB_API_KEY` once in the server environment for every user.
 
+Detail pages use IMDb scores from connected SIMKL for movie and series headers. To enable IMDb episode scores alongside TMDB's episode information, set an [OMDb API key](https://www.omdbapi.com/apikey.aspx) as the server-only `OMDB_API_KEY` (a Secret on Vercel). OMDb ratings are fetched once per viewed season and cached; missing or unmatched scores are left blank. Artwork, episode ordering, and playback still use the existing flow.
+
 ### Installation
 
 ```bash

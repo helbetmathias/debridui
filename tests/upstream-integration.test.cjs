@@ -851,6 +851,118 @@ test("SIMKL IMDb rating lookup uses cached public details and never substitutes 
     }
 });
 
+test("SIMKL title ratings require a verified IMDb match and include an item-level attribution link", async () => {
+    const restore = simklTestEnvironment();
+    const oldFetch = globalThis.fetch;
+    const calls = [];
+    let matchedImdb = "tt1234567";
+    globalThis.fetch = async (input, options) => {
+        const url = new URL(input);
+        calls.push(url.pathname);
+        assert.equal(url.origin, "https://api.simkl.com");
+        assert.equal(new Headers(options.headers).has("authorization"), false);
+        if (url.pathname === "/redirect") {
+            assert.equal(options.redirect, "manual");
+            assert.equal(url.searchParams.get("imdb"), "tt1234567");
+            return Response.redirect("https://simkl.com/movies/42/test-film", 301);
+        }
+        return Response.json({
+            ids: { simkl: 42, imdb: matchedImdb, slug: "test-film" },
+            ratings: { imdb: { rating: 8.4 }, simkl: { rating: 9.1 } },
+        });
+    };
+    try {
+        const { getSimklTitleImdbRating } = loader({ "server-only": {} })("src/lib/simkl/recommendations.ts");
+        const query = { id: "tt1234567", type: "movie" };
+        assert.deepEqual(await getSimklTitleImdbRating(query), {
+            rating: 8.4,
+            simklUrl: "https://simkl.com/movies/42/test-film",
+        });
+        assert.deepEqual(calls, ["/redirect", "/movies/42"]);
+        for (matchedImdb of ["tt1234568", undefined]) {
+            assert.equal(await getSimklTitleImdbRating(query), null);
+        }
+    } finally {
+        globalThis.fetch = oldFetch;
+        restore();
+    }
+});
+
+test("OMDb season ratings make one authenticated season lookup and return only normalized scores", async () => {
+    const oldKey = process.env.OMDB_API_KEY;
+    const oldFetch = globalThis.fetch;
+    let authenticated = false;
+    let calls = 0;
+    let returnedSeason = "2";
+    const { NextRequest } = nativeRequire("next/server");
+    const get = loader({
+        "server-only": {},
+        "@/lib/auth": {
+            auth: { api: { getSession: async () => (authenticated ? { user: { id: "viewer" } } : null) } },
+        },
+    })("src/app/api/imdb/season/route.ts").GET;
+    const request = (query = "id=tt1234567&season=2") =>
+        get(new NextRequest(`https://example.test/api/imdb/season?${query}`));
+    globalThis.fetch = async (input, options) => {
+        calls++;
+        const url = new URL(input);
+        assert.equal(url.origin, "https://www.omdbapi.com");
+        assert.equal(url.searchParams.get("i"), "tt1234567");
+        assert.equal(url.searchParams.get("Season"), "2");
+        assert.equal(url.searchParams.get("apikey"), "test-omdb-secret");
+        assert.equal(options.redirect, "error");
+        assert.ok(options.next.revalidate > 0);
+        return Response.json({
+            Response: "True",
+            Season: returnedSeason,
+            Episodes: [
+                { Episode: "1", Title: "One", Released: "2026-08-02", imdbID: "tt7654321", imdbRating: "8.1" },
+                { Episode: "2", Title: "Two", Released: "N/A", imdbID: "tt7654322", imdbRating: "N/A" },
+                { Episode: "3", Title: "Three", imdbID: "tt7654323", imdbRating: "11.2" },
+                { Episode: "4", Title: "Four", imdbID: "tt7654324", imdbRating: "0.0" },
+            ],
+        });
+    };
+    try {
+        process.env.OMDB_API_KEY = "test-omdb-secret";
+        assert.equal((await request()).status, 401);
+        authenticated = true;
+        assert.equal((await request("id=1234567&season=2")).status, 400);
+        assert.equal((await request("id=tt1234567&season=1.5")).status, 400);
+        assert.equal(calls, 0);
+        const response = await request();
+        assert.equal(response.headers.get("cache-control"), "private, no-store");
+        assert.deepEqual(await response.json(), [
+            { number: 1, title: "One", imdbId: "tt7654321", released: "2026-08-02", rating: 8.1 },
+        ]);
+        assert.equal(calls, 1);
+        returnedSeason = "3";
+        assert.deepEqual(await (await request()).json(), []);
+        delete process.env.OMDB_API_KEY;
+        assert.deepEqual(await (await request()).json(), []);
+        assert.equal(calls, 2);
+    } finally {
+        globalThis.fetch = oldFetch;
+        if (oldKey === undefined) delete process.env.OMDB_API_KEY;
+        else process.env.OMDB_API_KEY = oldKey;
+    }
+});
+
+test("IMDb episode ratings follow original numbering and refuse ambiguous or conflicting data", () => {
+    const { matchEpisodeImdbRating, getOriginalEpisode } = loader()("src/features/media/utils/episode-imdb-rating.ts");
+    const episode = { season: 1, number: 4, title: "Bête noire!", first_aired: "2026-09-01", ids: { tmdb: 10 } };
+    const score = { number: 4, title: "Bete Noire", imdbId: "tt12345678", released: "2026-09-01", rating: 8.7 };
+    assert.equal(matchEpisodeImdbRating(episode, [score]), score);
+    assert.ok(!matchEpisodeImdbRating(episode, [{ ...score, title: "Wrong title" }]));
+    assert.ok(!matchEpisodeImdbRating(episode, [{ ...score, released: "2026-09-02" }]));
+    assert.ok(!matchEpisodeImdbRating(episode, [score, { ...score, imdbId: "tt87654321" }]));
+    assert.ok(!matchEpisodeImdbRating({ ...episode, ids: { imdb: "tt7654321" } }, [score]));
+    assert.ok(!matchEpisodeImdbRating({ ...episode, title: "Episode 4" }, [{ ...score, title: "Episode #4" }]));
+    const grouped = { ...episode, season: 7, number: 1, originalEpisode: { season: 1, number: 4 } };
+    assert.deepEqual(getOriginalEpisode(grouped), { season: 1, number: 4 });
+    assert.equal(matchEpisodeImdbRating(grouped, [score]), score);
+});
+
 test("SIMKL recommendation and rating routes gate catalog reads on the signed-in user's connection", async () => {
     const restore = simklTestEnvironment();
     const { NextRequest } = nativeRequire("next/server");

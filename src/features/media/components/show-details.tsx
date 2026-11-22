@@ -6,9 +6,15 @@ import { SectionDivider } from "@/components/layout/section-divider";
 import { ScrollCarousel } from "@/components/scroll-carousel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEpisodeImdbRatings } from "@/features/media/hooks/use-episode-imdb-ratings";
 import { useShowEpisodes, useShowSeasons } from "@/features/media/hooks/use-media";
 import { useTMDBEpisodeGroupDetails, useTMDBSeriesEpisodeGroups } from "@/features/media/hooks/use-tmdb";
-import type { MediaDetails, MediaEpisode, MediaImageSet, MediaSeason } from "@/lib/media";
+import {
+    type DisplayEpisode,
+    getOriginalEpisode,
+    matchEpisodeImdbRating,
+} from "@/features/media/utils/episode-imdb-rating";
+import type { MediaDetails, MediaImageSet, MediaSeason } from "@/lib/media";
 import type { TMDBEpisodeGroupEpisode } from "@/lib/tmdb";
 import { EpisodeCard } from "./episode-card";
 import { MediaHeader, MediaHeaderSkeleton } from "./media-header";
@@ -28,10 +34,11 @@ function EpisodeList({
     showMedia,
 }: {
     label: string;
-    episodes: MediaEpisode[];
+    episodes: DisplayEpisode[];
     imdbId?: string;
     showMedia: MediaDetails;
 }) {
+    const ratings = useEpisodeImdbRatings(imdbId, episodes);
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -41,18 +48,28 @@ function EpisodeList({
                 </span>
             </div>
             <div className="-mx-4 sm:mx-0 flex flex-col gap-3">
-                {episodes.map((episode) => (
-                    <EpisodeCard key={episode.number} episode={episode} imdbId={imdbId} showMedia={showMedia} />
-                ))}
+                {episodes.map((episode) => {
+                    const score = matchEpisodeImdbRating(episode, ratings.get(getOriginalEpisode(episode).season));
+                    return (
+                        <EpisodeCard
+                            key={episode.number}
+                            episode={episode}
+                            imdbId={imdbId}
+                            imdbRating={score?.rating}
+                            showMedia={showMedia}
+                        />
+                    );
+                })}
             </div>
         </div>
     );
 }
 
-function normalizeGroupedEpisode(episode: TMDBEpisodeGroupEpisode, seasonOrder: number, index: number): MediaEpisode {
+function normalizeGroupedEpisode(episode: TMDBEpisodeGroupEpisode, seasonOrder: number, index: number): DisplayEpisode {
     return {
         season: seasonOrder,
         number: index + 1,
+        originalEpisode: { season: episode.season_number, number: episode.episode_number },
         title: episode.name,
         ids: { slug: String(episode.id), tmdb: episode.id },
         // Only screenshot is used by EpisodeCard
@@ -62,7 +79,6 @@ function normalizeGroupedEpisode(episode: TMDBEpisodeGroupEpisode, seasonOrder: 
         overview: episode.overview,
         first_aired: episode.air_date,
         runtime: episode.runtime || undefined,
-        rating: episode.vote_average,
     };
 }
 

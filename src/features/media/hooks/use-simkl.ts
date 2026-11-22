@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/components/auth-provider";
-import type { SimklPlayback, SimklRecommendation, SimklStatus } from "@/lib/simkl/types";
+import type { SimklPlayback, SimklRecommendation, SimklStatus, SimklTitleRating } from "@/lib/simkl/types";
 
 async function read<T>(action: string, signal?: AbortSignal): Promise<T> {
     const response = await fetch(`/api/simkl/${action}`, { cache: "no-store", signal });
@@ -40,6 +40,20 @@ export function useSimklImdbRating(id: string, type: "movie" | "show", enabled: 
         retry: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
+    }).data;
+}
+
+export function useSimklTitleImdbRating(id: string, type: "movie" | "show") {
+    const { session } = useAuth();
+    const userId = session?.user.id;
+    return useQuery({
+        queryKey: ["simkl", userId, "title-rating", type, id],
+        queryFn: ({ signal }) =>
+            read<SimklTitleRating | null>(`title-rating?${new URLSearchParams({ id, type })}`, signal),
+        enabled: !!userId && /^(?:tt[0-9]{1,12}|[1-9][0-9]{0,10})$/.test(id),
+        staleTime: (query) => (query.state.data ? 6 * 60 * 60_000 : 60_000),
+        retry: false,
+        refetchOnWindowFocus: false,
     }).data;
 }
 

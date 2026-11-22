@@ -6,6 +6,11 @@ export interface SimklRecommendation {
     simklUrl: string;
 }
 
+export interface SimklTitleRating {
+    rating: number;
+    simklUrl: string;
+}
+
 /** Public playback data only. OAuth credentials never leave the server. */
 export interface SimklPlaybackItem {
     id: string;

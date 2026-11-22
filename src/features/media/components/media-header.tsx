@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSimklTitleImdbRating } from "@/features/media/hooks/use-simkl";
 import type { MediaDetails } from "@/lib/media";
 import { getBackdropUrl, getPosterUrl } from "@/lib/media/images";
 import { MediaOverview } from "./media-overview";
@@ -16,12 +17,23 @@ interface MediaHeaderProps {
     type: "movie" | "show";
 }
 
-export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeaderProps) {
+export const MediaHeader = memo(function MediaHeader({ media, mediaId, type }: MediaHeaderProps) {
+    const imdbRating = useSimklTitleImdbRating(media.ids?.imdb || mediaId, type);
     const posterUrl =
         getPosterUrl(media.images) ||
         `https://placehold.co/300x450/1a1a1a/3e3e3e?text=${encodeURIComponent(media.title)}`;
     const backdropUrl = getBackdropUrl(media.images);
     const kicker = type === "movie" ? "Film" : "Series";
+    const rating = imdbRating && (
+        <>
+            <span className="text-border">·</span>
+            <span className="inline-flex items-center gap-1 md:gap-1.5" title="IMDb rating via SIMKL">
+                <Star className="size-3 md:size-4 fill-[#F5C518] text-[#F5C518] -translate-y-px" aria-hidden="true" />
+                <span className="text-foreground font-medium tabular-nums">{imdbRating.rating.toFixed(1)}</span>
+                <span>IMDb</span>
+            </span>
+        </>
+    );
 
     return (
         <div className="relative isolate">
@@ -73,17 +85,7 @@ export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeade
                             </h1>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                 {media.year && <span>{media.year}</span>}
-                                {!!media.rating && (
-                                    <>
-                                        <span className="text-border">·</span>
-                                        <span className="inline-flex items-center gap-1">
-                                            <Star className="size-3 fill-[#F5C518] text-[#F5C518] -translate-y-px" />
-                                            <span className="text-foreground font-medium">
-                                                {media.rating.toFixed(1)}
-                                            </span>
-                                        </span>
-                                    </>
-                                )}
+                                {rating}
                                 {media.runtime && (
                                     <>
                                         <span className="text-border">·</span>
@@ -150,16 +152,7 @@ export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeade
                         {/* Desktop metadata line */}
                         <div className="hidden md:flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                             {media.year && <span>{media.year}</span>}
-                            {!!media.rating && (
-                                <>
-                                    <span className="text-border">·</span>
-                                    <span className="flex items-center gap-1.5">
-                                        <Star className="size-4 fill-[#F5C518] text-[#F5C518] -translate-y-px" />
-                                        <span className="text-foreground font-medium">{media.rating.toFixed(1)}</span>
-                                        <span className="text-muted-foreground/60">/10</span>
-                                    </span>
-                                </>
-                            )}
+                            {rating}
                             {media.runtime && (
                                 <>
                                     <span className="text-border">·</span>
@@ -217,6 +210,21 @@ export const MediaHeader = memo(function MediaHeader({ media, type }: MediaHeade
                                         />
                                         IMDb
                                     </Link>
+                                )}
+                                {imdbRating && (
+                                    <a
+                                        href={imdbRating.simklUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 lg:gap-2 text-muted-foreground hover:text-foreground transition-colors">
+                                        <img
+                                            src="https://us.simkl.in/img_favicon/v2/favicon-192x192.png"
+                                            alt=""
+                                            className="size-3.5 lg:size-4 opacity-80"
+                                            loading="lazy"
+                                        />
+                                        SIMKL
+                                    </a>
                                 )}
                                 {media.ids.tmdb && (
                                     <Link
