@@ -78,25 +78,35 @@ interface ShowSourceToastParams {
     isCached: boolean;
     autoPlay: boolean;
     allowUncached: boolean;
+    resumeChoice?: string;
     onPlay: () => void;
 }
 
-function showSourceToast({ source, title, isCached, autoPlay, allowUncached, onPlay }: ShowSourceToastParams) {
+function showSourceToast({
+    source,
+    title,
+    isCached,
+    autoPlay,
+    allowUncached,
+    resumeChoice,
+    onPlay,
+}: ShowSourceToastParams) {
+    const meta = [source.addonName, source.resolution, source.quality, source.size].filter(Boolean).join(" · ");
+    const description = [meta, isCached ? "Cached" : "Not cached"].filter(Boolean).join(" · ");
     if (autoPlay && (isCached || allowUncached)) {
         dismissToast();
         onPlay();
+        if (resumeChoice) toast.success(resumeChoice, { position: TOAST_POSITION, description, duration: 5_000 });
         return;
     }
 
-    const meta = [source.resolution, source.quality, source.size].filter(Boolean).join(" · ");
-    const cacheStatus = isCached ? "Cached" : "Not cached";
-    const description = `${meta} · ${cacheStatus}`.replace(/^ · /, "");
+    const detail = [resumeChoice, description].filter(Boolean).join(" · ");
 
     if (isCached || allowUncached) {
         toast.success(title, {
             id: toastId ?? undefined,
             position: TOAST_POSITION,
-            description,
+            description: detail,
             action: { label: "Play", onClick: onPlay },
             duration: Infinity,
         });
@@ -104,7 +114,7 @@ function showSourceToast({ source, title, isCached, autoPlay, allowUncached, onP
         toast.warning(title, {
             id: toastId ?? undefined,
             position: TOAST_POSITION,
-            description,
+            description: detail,
             action: { label: "Play Anyway", onClick: onPlay },
             duration: Infinity,
         });
@@ -236,6 +246,7 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
                 isCached: !!source.isCached,
                 autoPlay: streamingSettings.autoPlay,
                 allowUncached: streamingSettings.allowUncached,
+                resumeChoice: resume ? (remembered ? "Reused last source" : "Picked best available source") : undefined,
                 onPlay: () => get().playSource(source, request, userId),
             });
         } catch (error) {

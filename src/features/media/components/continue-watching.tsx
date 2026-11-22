@@ -7,14 +7,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import type { useSimklPlayback } from "@/features/media/hooks/use-simkl";
+import { getContinueWatchingItems } from "@/features/media/utils/continue-watching-items";
 import {
     parseHiddenPlaybacks,
-    playbackVisibilityKey,
     readHiddenPlaybacks,
     setPlaybackHidden,
     subscribeHiddenPlaybacks,
 } from "@/features/media/utils/hidden-playbacks";
-import type { SimklPlaybackItem } from "@/lib/simkl/types";
+import type { ContinueWatchingItem } from "@/lib/simkl/types";
 import { ContinueWatchingCard } from "./continue-watching-card";
 
 export function ContinueWatching({
@@ -32,9 +32,9 @@ export function ContinueWatching({
     );
     if (!error && !data?.connected && !data?.reconnectRequired) return null;
     const hidden = new Set(parseHiddenPlaybacks(hiddenSnapshot));
-    const visibleItems = data?.items.filter((item) => !hidden.has(playbackVisibilityKey(item))) ?? [];
+    const visibleItems = getContinueWatchingItems(data, hidden);
 
-    function hide(item: SimklPlaybackItem) {
+    function hide(item: ContinueWatchingItem) {
         try {
             setPlaybackHidden(userId, item, true);
             toast.success("Hidden from Continue Watching", {
@@ -102,11 +102,11 @@ export function ContinueWatching({
                 <p className="min-h-10 sm:min-h-5 text-sm text-muted-foreground">
                     {data?.stale || error
                         ? "SIMKL is temporarily unavailable. Try again shortly."
-                        : data?.items.length
-                          ? "No visible playbacks."
+                        : data?.items.length || data?.nextUp?.length
+                          ? "No visible titles."
                           : !data?.syncedAt && !isFetched
                             ? "Checking SIMKL progress…"
-                            : "No saved playback yet. Pause or stop a title in your connected scrobbler to see it here."}
+                            : "No saved playback or next episodes yet."}
                 </p>
             )}
             {visibleItems.length > 0 && (data?.stale || error) && (

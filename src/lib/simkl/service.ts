@@ -2,7 +2,16 @@ import "server-only";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db/drizzle";
 import { simklConnections } from "@/lib/db/schema";
-import { parseCredentials, readSimkl, revokeGrant, type SimklCredentials, SimklError, tokenGrant } from "./client";
+import {
+    parseCredentials,
+    readSimkl,
+    readSimklNextUp,
+    revokeGrant,
+    type SimklCredentials,
+    SimklError,
+    tokenGrant,
+} from "./client";
+import { syncNextUp } from "./next-up";
 import { normalizePlayback, playbackStamp } from "./playback";
 import {
     createAuthorization,
@@ -98,6 +107,7 @@ export async function readSavedSimklPlayback(userId: string): Promise<SimklPlayb
         configured: true,
         connected: true,
         items: row.playbackCache?.items ?? [],
+        ...(row.playbackCache?.nextUp ? { nextUp: row.playbackCache.nextUp.items } : {}),
         syncedAt: row.playbackCache?.syncedAt,
         stale: !!row.retryAt && row.retryAt.getTime() > Date.now(),
     };
@@ -132,7 +142,13 @@ export async function getSimklPlayback(userId: string): Promise<SimklPlayback> {
                 ...(row?.reconnectRequired ? { reconnectRequired: true } : {}),
             };
         const cache = row.playbackCache;
-        const cached = { configured: true, connected: true, items: cache?.items ?? [], syncedAt: cache?.syncedAt };
+        const cached = {
+            configured: true,
+            connected: true,
+            items: cache?.items ?? [],
+            syncedAt: cache?.syncedAt,
+            ...(cache?.nextUp ? { nextUp: cache.nextUp.items } : {}),
+        };
         if (row.retryAt && row.retryAt.getTime() > Date.now()) return { ...cached, stale: true };
         if (row.checkedAt && Date.now() - row.checkedAt.getTime() < 60_000) return cached;
         try {
@@ -168,11 +184,27 @@ export async function getSimklPlayback(userId: string): Promise<SimklPlayback> {
                       syncedAt: new Date().toISOString(),
                   }
                 : cache;
+            let retryAt: Date | null = null;
+            let nextUp = cache?.nextUp;
+            try {
+                nextUp = await syncNextUp(activities, nextUp, (since) =>
+                    readSimklNextUp(credentials.accessToken, since)
+                );
+            } catch (error) {
+                retryAt = new Date(Date.now() + (error instanceof SimklError ? error.retrySeconds : 60) * 1000);
+            }
             await tx
                 .update(simklConnections)
-                .set({ playbackCache: snapshot, checkedAt: new Date(), retryAt: null })
+                .set({ playbackCache: { ...snapshot, nextUp }, checkedAt: new Date(), retryAt })
                 .where(condition);
-            return { configured: true, connected: true, items: snapshot.items, syncedAt: snapshot.syncedAt };
+            return {
+                configured: true,
+                connected: true,
+                items: snapshot.items,
+                syncedAt: snapshot.syncedAt,
+                ...(nextUp ? { nextUp: nextUp.items } : {}),
+                ...(retryAt ? { stale: true } : {}),
+            };
         } catch (error) {
             if (
                 error instanceof SimklError &&

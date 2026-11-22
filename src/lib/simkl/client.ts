@@ -21,7 +21,7 @@ const credentialsSchema = z.object({
 export const parseCredentials = (value: unknown) => credentialsSchema.parse(value);
 export type SimklCredentials = z.infer<typeof credentialsSchema>;
 
-async function request(path: string, init: RequestInit) {
+async function request(path: string, init: RequestInit, params?: URLSearchParams, timeoutMs = 12_000) {
     const config = simklConfig();
     const url = new URL(`https://api.simkl.com${path}`);
     url.search = new URLSearchParams({
@@ -29,12 +29,13 @@ async function request(path: string, init: RequestInit) {
         "app-name": "debridui",
         "app-version": "1.0",
     }).toString();
+    if (params) for (const [key, value] of params) url.searchParams.append(key, value);
     const response = await fetch(url, {
         ...init,
         headers: { "User-Agent": "DebridUI/1.0", ...init.headers },
         cache: "no-store",
         redirect: "error",
-        signal: AbortSignal.timeout(12_000),
+        signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
         const retry = response.headers.get("Retry-After");
@@ -76,6 +77,13 @@ export async function tokenGrant(params: Record<string, string>): Promise<SimklC
 
 export async function readSimkl(path: "/sync/activities" | "/sync/playback", accessToken: string): Promise<unknown> {
     return (await request(path, { headers: { Authorization: `Bearer ${accessToken}` } })).json();
+}
+
+export async function readSimklNextUp(accessToken: string, since?: string): Promise<unknown> {
+    const params = new URLSearchParams({ next_watch_info: "yes" });
+    if (since) params.set("date_from", since);
+    const path = since ? "/sync/all-items/shows" : "/sync/all-items/shows/watching";
+    return (await request(path, { headers: { Authorization: `Bearer ${accessToken}` } }, params, 4_000)).json();
 }
 
 export async function revokeGrant(token: string): Promise<void> {

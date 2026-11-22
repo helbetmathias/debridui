@@ -1,14 +1,13 @@
 import { z } from "zod";
-import type { SimklPlaybackItem } from "@/lib/simkl/types";
+import type { ContinueWatchingItem } from "@/lib/simkl/types";
 
 const CHANGE_EVENT = "debridui:hidden-playbacks";
 const KEY_PREFIX = "debridui.hidden-playbacks.v1:";
 const LIMIT = 100;
 const hiddenKeys = z.array(z.string()).max(LIMIT);
-type Playback = Pick<SimklPlaybackItem, "id" | "pausedAt">;
 
-export function playbackVisibilityKey(item: Playback) {
-    return JSON.stringify([item.id, item.pausedAt]);
+export function playbackVisibilityKey(item: ContinueWatchingItem) {
+    return JSON.stringify([item.id, "pausedAt" in item ? item.pausedAt : item.lastWatchedAt]);
 }
 
 export function readHiddenPlaybacks(userId: string) {
@@ -39,7 +38,7 @@ export function subscribeHiddenPlaybacks(notify: () => void) {
     };
 }
 
-export function setPlaybackHidden(userId: string, item: Playback, hidden: boolean) {
+export function setPlaybackHidden(userId: string, item: ContinueWatchingItem, hidden: boolean) {
     const key = playbackVisibilityKey(item);
     const rest = parseHiddenPlaybacks(readHiddenPlaybacks(userId)).filter((entry) => entry !== key);
     const next = hidden ? [key, ...rest].slice(0, LIMIT) : rest;

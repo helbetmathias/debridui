@@ -173,6 +173,22 @@ test("compact playback cards keep movie/episode source requests unchanged and la
     requests.length = 0;
     renderToStaticMarkup(React.createElement(Card, { item: { ...episode, episodeMapped: false }, onHide: () => {} }));
     assert.equal(requests.length, 0);
+    const next = {
+        ...episode,
+        id: "next-up:20:2:1",
+        episode: { season: 2, number: 1, title: "Next season" },
+        lastWatchedEpisode: episode.episode,
+        lastWatchedAt: episode.pausedAt,
+    };
+    const nextMarkup = renderToStaticMarkup(React.createElement(Card, { item: next, onHide: () => {} }));
+    assert.match(nextMarkup, /aria-label="Play Silo, S02 E01"/);
+    assert.match(nextMarkup, /Up Next/);
+    assert.doesNotMatch(nextMarkup, /<progress|35% watched/);
+    assert.equal(requests.length, 2);
+    for (const request of requests) {
+        assert.equal(request.resume, false);
+        assert.deepEqual(request.tvParams, { season: 2, episode: 1, title: "Next season" });
+    }
 });
 
 test("Continue Watching hide and undo are local to the user and the saved playback", () => {
@@ -492,6 +508,82 @@ test("SIMKL playback normalizes real movies/episodes, keeps latest point, and gu
     assert.notEqual(playbackStamp({ movies: { playback: "one" } }), playbackStamp({ movies: { playback: "two" } }));
 });
 
+test("SIMKL Next Up uses watched history and airdates, filters invalid matches, and syncs only on TV changes", async () => {
+    const load = loader();
+    const { mergeNextUp, syncNextUp } = load("src/lib/simkl/next-up.ts");
+    const { getContinueWatchingItems } = load("src/features/media/utils/continue-watching-items.ts");
+    const { playbackVisibilityKey } = load("src/features/media/utils/hidden-playbacks.ts");
+    const first = "2026-08-01T12:00:00Z";
+    const second = "2026-08-02T12:00:00Z";
+    const last = "2026-08-03T12:00:00Z";
+    const show = {
+        status: "watching",
+        last_watched_at: first,
+        last_watched: "S01E10",
+        next_to_watch: "S02E01",
+        next_to_watch_info: { season: 2, episode: 1, date: "2000-01-01T00:00:00Z", title: "Season premiere" },
+        show: { title: "Silo", ids: { simkl: 23, imdb: "tt14688458", tmdb: 1, slug: "silo" } },
+    };
+    const calls = [];
+    let response = { shows: [show] };
+    const read = async (since) => {
+        calls.push(since);
+        return response;
+    };
+    const initial = await syncNextUp({ all: first, tv_shows: { watching: first } }, undefined, read);
+    const [next] = initial.items;
+    assert.deepEqual(next.episode, { season: 2, number: 1, title: "Season premiere" });
+    assert.equal(next.simklUrl, "https://simkl.com/tv/23/silo");
+    assert.deepEqual(
+        await syncNextUp({ all: second, tv_shows: { watching: first, playback: second } }, initial, read),
+        initial
+    );
+    assert.deepEqual(calls, [undefined]);
+    for (const invalid of [
+        { ...show, last_watched: null },
+        { ...show, status: "hold" },
+        { ...show, status: "completed" },
+        { ...show, next_to_watch: null },
+        { ...show, next_to_watch: "S01E10" },
+        { ...show, next_to_watch_info: { ...show.next_to_watch_info, date: "2099-01-01T00:00:00Z" } },
+        { ...show, show: { ...show.show, ids: { simkl: 23 } } },
+    ]) {
+        assert.deepEqual(mergeNextUp({ shows: [invalid] }, initial.items), []);
+    }
+    response = { shows: [{ ...show, next_to_watch: "S02E02" }] };
+    const advanced = await syncNextUp({ all: second, tv_shows: { watching: second } }, initial, read);
+    assert.deepEqual(advanced.items[0].episode, { season: 2, number: 2, title: undefined });
+    response = { shows: [{ ...show, status: "completed" }] };
+    const completed = await syncNextUp({ all: last, tv_shows: { watching: second, completed: last } }, advanced, read);
+    assert.deepEqual(completed.items, []);
+    response = {};
+    const removed = await syncNextUp(
+        { all: last, tv_shows: { watching: second, removed_from_list: last } },
+        advanced,
+        read
+    );
+    assert.deepEqual(removed.items, []);
+    assert.deepEqual(calls, [undefined, first, second, undefined]);
+    assert.throws(() => mergeNextUp({ error: "invalid" }, advanced.items));
+
+    const pause = {
+        id: "pause",
+        type: "show",
+        imdbId: next.imdbId,
+        progress: 45,
+        pausedAt: second,
+        episode: { season: 1, number: 10 },
+    };
+    const playback = { connected: true, items: [pause], nextUp: [next] };
+    assert.deepEqual(getContinueWatchingItems(playback, new Set()), [pause]);
+    assert.deepEqual(getContinueWatchingItems(playback, new Set([playbackVisibilityKey(pause)])), []);
+    const stale = { ...pause, pausedAt: "2026-08-01T11:00:00Z" };
+    const finished = { ...playback, items: [stale] };
+    assert.deepEqual(getContinueWatchingItems(finished, new Set()), [next]);
+    assert.deepEqual(getContinueWatchingItems(finished, new Set([playbackVisibilityKey(next)])), []);
+    assert.deepEqual(getContinueWatchingItems({ ...playback, connected: false }, new Set()), []);
+});
+
 test("SIMKL callback state is single-use, scoped to its owner, and tokens never enter status", async () => {
     const restore = simklTestEnvironment();
     const database = simklDatabase();
@@ -586,8 +678,11 @@ test("SIMKL sync serializes refresh, isolates caches, gates playback on activiti
     let grants = 0;
     let playbackReads = 0;
     let activitiesReads = 0;
+    const nextUpReads = [];
     let fail = false;
+    let nextUpFail = false;
     let stamp = "one";
+    let tvChange = "2026-08-01T12:00:00Z";
     class SimklError extends Error {
         constructor(status, retrySeconds = 60, code) {
             super("test provider error");
@@ -612,7 +707,7 @@ test("SIMKL sync serializes refresh, isolates caches, gates playback on activiti
                 if (fail) throw new SimklError(429, 120);
                 if (endpoint === "/sync/activities") {
                     activitiesReads++;
-                    return { movies: { playback: stamp } };
+                    return { all: tvChange, tv_shows: { watching: tvChange }, movies: { playback: stamp } };
                 }
                 playbackReads++;
                 return [
@@ -624,6 +719,21 @@ test("SIMKL sync serializes refresh, isolates caches, gates playback on activiti
                         movie: { title: "Example", ids: { imdb: "tt123", simkl: 1 } },
                     },
                 ];
+            },
+            readSimklNextUp: async (_token, since) => {
+                nextUpReads.push(since);
+                if (nextUpFail) throw new SimklError(503);
+                return {
+                    shows: [
+                        {
+                            status: "watching",
+                            last_watched_at: tvChange,
+                            last_watched: "S01E01",
+                            next_to_watch: "S01E02",
+                            show: { title: "Example Show", ids: { imdb: "tt543", simkl: 2 } },
+                        },
+                    ],
+                };
             },
         },
     });
@@ -642,6 +752,9 @@ test("SIMKL sync serializes refresh, isolates caches, gates playback on activiti
         assert.equal(playbackReads, 1);
         assert.equal(activitiesReads, 1);
         assert.equal(results[0].items[0].progress, 35);
+        assert.equal(results[0].nextUp[0].episode.number, 2);
+        assert.deepEqual(results[0].nextUp, results[1].nextUp);
+        assert.deepEqual(nextUpReads, [undefined]);
         assert.equal(JSON.stringify(results).includes("new-access"), false);
         assert.equal((await service.getSimklPlayback("user-b")).items.length, 0);
         database.rows.get("user-a").checkedAt = new Date(0);
@@ -649,11 +762,18 @@ test("SIMKL sync serializes refresh, isolates caches, gates playback on activiti
         assert.equal(activitiesReads, 2);
         assert.equal(playbackReads, 1);
         stamp = "two";
+        tvChange = "2026-08-02T12:00:00Z";
+        nextUpFail = true;
         database.rows.get("user-a").checkedAt = new Date(0);
-        await service.getSimklPlayback("user-a");
+        const playbackOnly = await service.getSimklPlayback("user-a");
         assert.equal(playbackReads, 2);
+        assert.deepEqual(nextUpReads, [undefined, "2026-08-01T12:00:00Z"]);
+        assert.equal(playbackOnly.stale, true);
+        assert.deepEqual(playbackOnly.items, results[0].items);
+        assert.deepEqual(playbackOnly.nextUp, results[0].nextUp);
         fail = true;
         database.rows.get("user-a").checkedAt = new Date(0);
+        database.rows.get("user-a").retryAt = null;
         const stale = await service.getSimklPlayback("user-a");
         assert.equal(stale.stale, true);
         assert.equal(stale.items[0].progress, 35);
@@ -701,6 +821,13 @@ test("SIMKL provider sends only server-side credentials, read-only calls, and sa
         assert.equal(requests[1].init.headers.Authorization, "Bearer access");
         assert.equal(new URL(requests[1].url).searchParams.get("app-name"), "debridui");
         assert.equal(requests[1].init.cache, "no-store");
+        await provider.readSimklNextUp(result.accessToken);
+        await provider.readSimklNextUp(result.accessToken, "2026-08-03T12:00:00Z");
+        assert.equal(new URL(requests[2].url).pathname, "/sync/all-items/shows/watching");
+        assert.equal(new URL(requests[2].url).searchParams.get("next_watch_info"), "yes");
+        assert.equal(new URL(requests[3].url).pathname, "/sync/all-items/shows");
+        assert.equal(new URL(requests[3].url).searchParams.get("date_from"), "2026-08-03T12:00:00Z");
+        assert.equal(requests[3].init.headers.Authorization, "Bearer access");
         rateLimited = true;
         await assert.rejects(
             provider.readSimkl("/sync/playback", result.accessToken),
@@ -1274,13 +1401,22 @@ test("Resume fetches fresh streams and only prefers an eligible release; regular
         url: "https://video.test/ranked",
     };
     const opened = [];
+    const toasts = [];
     let picked = "https://video.test/fresh";
     let fetched = 0;
     let cacheReads = 0;
     let streams = [best, last];
     const noop = () => {};
     const load = loader({
-        sonner: { toast: { loading: () => "test", dismiss: noop, error: noop, success: noop, warning: noop } },
+        sonner: {
+            toast: {
+                loading: () => "test",
+                dismiss: noop,
+                error: noop,
+                success: (...args) => toasts.push(args),
+                warning: noop,
+            },
+        },
         "@/stores/settings": {
             getActiveRange: () => mockRange,
             useSettingsStore: { getState: () => ({ get: (key) => (key === "streaming" ? streamingSettings : "MPV") }) },
@@ -1325,6 +1461,18 @@ test("Resume fetches fresh streams and only prefers an eligible release; regular
         assert.deepEqual(opened, [last.url, best.url, best.url, best.url, "https://video.test/legacy-cache"]);
         assert.equal(fetched, 4);
         assert.equal(cacheReads, 1);
+        assert.deepEqual(
+            toasts.map(([title]) => title),
+            [
+                "Reused last source",
+                "Picked best available source",
+                "Picked best available source",
+                "Picked best available source",
+            ]
+        );
+        assert.match(toasts[0][1].description, /Addon.*1080p.*Cached/);
+        assert.match(toasts[1][1].description, /Addon.*2160p.*Cached/);
+        assert.doesNotMatch(JSON.stringify(toasts), /https:\/\//);
     } finally {
         global.fetch = oldFetch;
     }

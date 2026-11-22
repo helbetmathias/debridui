@@ -46,9 +46,15 @@ DebridUI reads saved pause/stop progress; it does not infer viewing from clickin
 
 When DebridUI last launched a release for that exact movie or episode, **Resume** prefers an unambiguous match from freshly requested addon results, as long as it still meets your quality and cache preferences. If the addon doesn't provide enough file information, the match is missing, or more than one source matches, normal automatic selection applies. Only a file fingerprint is saved for matching, never the old stream URL. This memory is scoped to your DebridUI user in this browser and does not sync to other devices.
 
+Resume reports whether it reused the last source or picked the best available source, with the addon's name and any available quality and cache details. This reports the selected release, not whether the player restored the timestamp.
+
+**Up Next** uses SIMKL’s next aired episode for TV shows you’ve already started and still have in Watching. It appears in the same row, after unfinished playbacks. A newer pause, including a rewatch, takes priority for that show. Up Next never starts an episode until you select it. There’s no new setup or migration for an existing SIMKL connection.
+
 Use a Continue Watching card's **⋯ → Hide from this row** to hide that saved playback in this browser, or **Undo** to restore it. It doesn't delete SIMKL history or affect other devices. A newer playback can appear in the row again.
 
 Items without an IMDb mapping cannot launch through the stream addons. Anime episodes without SIMKL's TVDB episode mapping display progress but require choosing the episode manually, avoiding an incorrect automatic season/episode selection. SIMKL's retention and saved-playback rules still apply.
+
+SIMKL’s [paused-playback retention](https://docs.simkl.org/how-to-use-simkl/core-features/content-tracking/tracking-content/watch-history/playback-progress-manager#playback-retention-why-some-items-disappear) does not apply to completed watch history. Up Next uses that history rather than estimating completion from the saved position. DebridUI does not currently archive expired playback positions.
 
 ## Privacy and synchronization
 
@@ -56,6 +62,7 @@ Items without an IMDb mapping cannot launch through the stream addons. Anime epi
 - Access/refresh tokens are encrypted with AES-256-GCM, bound to the DebridUI user, and stored separately from settings. They are never returned by the API or included in settings backups or persistent browser query caches.
 - Database row locks serialize refreshes and playback synchronization across server instances. This is important because refreshing a SIMKL grant invalidates its previous access token.
 - On visits/window focus, the server checks at most once per minute. `/sync/activities` gates playback fetches; unchanged playback timestamps reuse the saved snapshot. A daily reconciliation also handles expiry. Transient errors preserve the last good snapshot and respect backoff/`Retry-After`.
+- Up Next uses the same activity read and per-user snapshot. It reads changes to TV status since the last successful sync, or refreshes the Watching bucket when SIMKL reports a removal.
 - Disconnect removes this DebridUI link/cache and attempts to revoke its grant. It does not delete SIMKL history or affect the separate MPV scrobbler. If revocation fails, the UI asks you to remove DebridUI in SIMKL Connected Apps as well.
 
 ## Checks before release

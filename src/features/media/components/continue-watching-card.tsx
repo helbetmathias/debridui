@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Ellipsis, EyeOff, Film, Play } from "lucide-react";
+import { ArrowUpRight, Ellipsis, EyeOff, Film, Play } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -12,15 +13,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { mediaClient } from "@/lib/media";
 import { getBackdropUrl } from "@/lib/media/images";
-import type { SimklPlaybackItem } from "@/lib/simkl/types";
+import type { ContinueWatchingItem } from "@/lib/simkl/types";
 import { WatchButton } from "./watch-button";
 
-export function ContinueWatchingCard({ item, onHide }: { item: SimklPlaybackItem; onHide: () => void }) {
+export function ContinueWatchingCard({ item, onHide }: { item: ContinueWatchingItem; onHide: () => void }) {
+    const isNextUp = "lastWatchedAt" in item;
     const id = item.imdbId || item.tmdbId || "";
+    const cardRef = useRef<HTMLElement>(null);
+    const [nearViewport, setNearViewport] = useState(false);
+    useEffect(() => {
+        if (!isNextUp || !cardRef.current) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                setNearViewport(true);
+                observer.disconnect();
+            },
+            { rootMargin: "240px" }
+        );
+        observer.observe(cardRef.current);
+        return () => observer.disconnect();
+    }, [isNextUp]);
     const { data: detail } = useQuery({
         queryKey: ["tmdb", "media", id, item.type],
         queryFn: () => (item.type === "movie" ? mediaClient.getMovie(id) : mediaClient.getShow(id)),
-        enabled: !!id,
+        enabled: !!id && (!isNextUp || nearViewport),
         staleTime: 86400_000,
         retry: false,
     });
@@ -33,17 +50,21 @@ export function ContinueWatchingCard({ item, onHide }: { item: SimklPlaybackItem
         : "";
     // Movie runtime is approximate; a show's overall runtime is not an episode runtime.
     const remaining =
-        item.type === "movie" && detail?.runtime ? Math.ceil((detail.runtime * (100 - item.progress)) / 100) : null;
+        !isNextUp && item.type === "movie" && detail?.runtime
+            ? Math.ceil((detail.runtime * (100 - item.progress)) / 100)
+            : null;
     const detailHref = id
         ? `/${item.type}s/${id}${episode ? `?season=${episode.season}#episode-${episode.number}` : ""}`
         : null;
-    const progressLabel = `${Math.round(item.progress)}%`;
-    const canResume = !!imdbId && item.episodeMapped !== false;
+    const progressLabel = isNextUp ? "" : `${Math.round(item.progress)}%`;
+    const episodeUnmapped = !isNextUp && item.episodeMapped === false;
+    const canPlay = !!imdbId && !episodeUnmapped;
+    const actionLabel = isNextUp ? `Play ${item.title}, ${episodeLabel}` : `Resume ${item.title}`;
     const request = {
         imdbId: imdbId ?? "",
         type: item.type,
         media,
-        resume: true,
+        resume: !isNextUp,
         ...(episode ? { tvParams: { season: episode.season, episode: episode.number, title: episode.title } } : {}),
     };
     const image = (
@@ -66,7 +87,9 @@ export function ContinueWatchingCard({ item, onHide }: { item: SimklPlaybackItem
         </div>
     );
     return (
-        <article className="group/watch-card overflow-hidden rounded-sm border border-border/50 bg-muted/10">
+        <article
+            ref={cardRef}
+            className="group/watch-card h-full overflow-hidden rounded-sm border border-border/50 bg-muted/10">
             <div className="relative">
                 {detailHref ? (
                     <Link
@@ -89,18 +112,26 @@ export function ContinueWatchingCard({ item, onHide }: { item: SimklPlaybackItem
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-sm bg-popover/90 backdrop-blur-md">
+                        {item.simklUrl && (
+                            <DropdownMenuItem asChild>
+                                <a href={item.simklUrl} target="_blank" rel="noreferrer">
+                                    <ArrowUpRight aria-hidden="true" />
+                                    View on SIMKL
+                                </a>
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onSelect={onHide}>
                             <EyeOff aria-hidden="true" />
                             Hide from this row
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
-                {canResume && (
+                {canPlay && (
                     <WatchButton request={request}>
                         <Button
                             size="icon"
                             variant="outline"
-                            aria-label={`Resume ${item.title}`}
+                            aria-label={actionLabel}
                             className="sm:hidden absolute bottom-2 right-2 rounded-full bg-background/90 after:absolute after:-inset-1">
                             <Play className="size-4 fill-current" />
                         </Button>
@@ -116,30 +147,38 @@ export function ContinueWatchingCard({ item, onHide }: { item: SimklPlaybackItem
                         {episode?.title || (episode ? "Episode" : (item.year ?? detail?.year ?? "Movie"))}
                     </p>
                 </div>
-                <progress
-                    value={item.progress}
-                    max={100}
-                    aria-label={`${item.title}: ${progressLabel} watched`}
-                    className="block h-1 w-full overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"
-                />
-                <div className="flex justify-between items-center gap-2 text-xs text-muted-foreground tabular-nums">
-                    <span>{progressLabel} watched</span>
-                    {remaining !== null && <span>~{remaining} min left</span>}
+                <div className="min-h-7 sm:min-h-[30px] flex flex-col justify-end gap-2 sm:gap-2.5 text-xs">
+                    {isNextUp ? (
+                        <span className="font-medium text-primary">Up Next</span>
+                    ) : (
+                        <>
+                            <progress
+                                value={item.progress}
+                                max={100}
+                                aria-label={`${item.title}: ${progressLabel} watched`}
+                                className="block h-1 w-full overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"
+                            />
+                            <div className="flex justify-between items-center gap-2 text-muted-foreground tabular-nums">
+                                <span>{progressLabel} watched</span>
+                                {remaining !== null && <span>~{remaining} min left</span>}
+                            </div>
+                        </>
+                    )}
                 </div>
-                {canResume ? (
+                {canPlay ? (
                     <WatchButton request={request}>
                         <Button
                             size="sm"
                             variant="outline"
                             className="hidden sm:flex w-full gap-2"
-                            aria-label={`Resume ${item.title}`}>
+                            aria-label={actionLabel}>
                             <Play className="size-3 fill-current" />
-                            Resume
+                            {isNextUp ? `Play ${episodeLabel}` : "Resume"}
                         </Button>
                     </WatchButton>
                 ) : (
                     <p className="text-xs text-muted-foreground">
-                        {item.episodeMapped === false
+                        {episodeUnmapped
                             ? "Episode mapping unavailable; choose the episode from its details."
                             : "No playable IMDb mapping available."}
                     </p>

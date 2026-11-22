@@ -8,6 +8,11 @@ const mediaSchema = z.object({
         imdb: z.string().optional(),
         tmdb: z.union([z.string(), z.number()]).optional(),
         simkl: z.union([z.string(), z.number()]).optional(),
+        slug: z
+            .string()
+            .regex(/^[a-zA-Z0-9_-]{1,200}$/)
+            .optional()
+            .catch(undefined),
     }),
 });
 const sessionSchema = z.object({
@@ -46,6 +51,8 @@ export function normalizePlayback(payload: unknown): SimklPlaybackItem[] {
         const number = episode?.tvdb_number ?? episode?.number;
         const identity = `${session.type}:${media.ids.simkl ?? media.ids.imdb ?? session.id}:${season}:${number}`;
         const imdbId = /^tt\d+$/.test(media.ids.imdb ?? "") ? media.ids.imdb : undefined;
+        const simklId = String(media.ids.simkl ?? "");
+        const simklPath = session.anime ? "anime" : session.type === "movie" ? "movies" : "tv";
         items.push({
             identity,
             item: {
@@ -56,6 +63,11 @@ export function normalizePlayback(payload: unknown): SimklPlaybackItem[] {
                 imdbId,
                 tmdbId: media.ids.tmdb ? String(media.ids.tmdb) : undefined,
                 simklId: media.ids.simkl ? String(media.ids.simkl) : undefined,
+                ...(/^[1-9][0-9]{0,10}$/.test(simklId)
+                    ? {
+                          simklUrl: `https://simkl.com/${simklPath}/${simklId}${media.ids.slug ? `/${media.ids.slug}` : ""}`,
+                      }
+                    : {}),
                 progress: session.progress,
                 pausedAt: session.paused_at,
                 episodeMapped:
