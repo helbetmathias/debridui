@@ -40,8 +40,10 @@ let requestId = 0;
 const MIN_TOAST_DURATION = 300;
 const TOAST_POSITION = "bottom-center" as const;
 
-function formatTitle(request: StreamingRequest): string {
-    const baseTitle = request.media.title || "Untitled";
+function formatTitle(request: StreamingRequest, includeYear = false): string {
+    const title = request.media.title || "Untitled";
+    const yearSuffix = includeYear && request.media.year ? ` (${request.media.year})` : "";
+    const baseTitle = yearSuffix && !title.endsWith(yearSuffix) ? title + yearSuffix : title;
 
     if (request.type === "show" && request.tvParams) {
         const seasonStr = String(request.tvParams.season).padStart(2, "0");
@@ -143,12 +145,10 @@ export const useStreamingStore = create<StreamingState>()((set, get) => ({
                 fileType: FileType.VIDEO,
             });
         } else {
-            // Scrobblers need the title/year or episode number, not the source quality label.
-            const scrobbleTitle =
-                request.type === "movie" && request.media.year ? `${title} (${request.media.year})` : title;
             openInPlayer({
                 url: source.url,
-                fileName: mediaPlayer === MediaPlayer.MPV_SIMKL ? scrobbleTitle : fileName,
+                // The series premiere year helps MPS reject same-named shows.
+                fileName: mediaPlayer === MediaPlayer.MPV_SIMKL ? formatTitle(request, true) : fileName,
                 player: mediaPlayer,
             });
         }

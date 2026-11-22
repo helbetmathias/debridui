@@ -19,7 +19,7 @@ function Prepare([string]$Link) {
 }
 function Assert([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 $url = 'https://example.invalid/video?signature=a%2Fb%26c&token=one+two#fragment'
-$title = 'Silo S01E02 - Truth & "Secrets"'
+$title = 'Silo (2023) S01E02 - Truth & "Secrets"'
 $start = Prepare (Link $url $title)
 Assert ($start.CreateNoWindow -and -not $start.UseShellExecute) 'Launcher must not use a shell or console.'
 Assert (-not $start.Arguments.Contains('signature')) 'Stream URL leaked into the MPV command line.'
@@ -29,7 +29,7 @@ Assert ($aliases.Count -eq 1) 'Expected one descriptor.'
 $descriptor = Get-Content -LiteralPath $aliases[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
 Assert ($descriptor.url -ceq $url) 'Signed URL was modified.'
 Assert ($descriptor.title -ceq $title) 'Title was modified.'
-Assert ($aliases[0].Name.Contains('Silo S01E02')) 'Episode number missing from filename.'
+Assert ($aliases[0].Name.Contains('Silo (2023) S01E02')) 'Series year or episode number missing from filename.'
 Assert (-not $aliases[0].Name.Contains('"')) 'Unsafe filename character.'
 $again = Prepare (Link $url $title)
 Assert ($again.Arguments -ceq $start.Arguments) 'Media identity must remain stable across launches.'

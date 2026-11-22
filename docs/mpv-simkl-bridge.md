@@ -21,7 +21,8 @@ The installed helper lives at `%LOCALAPPDATA%\DebridUI\mpv-bridge`. The installe
 ## Playback and privacy
 
 - The normal flow stays **choose movie/episode → Play → MPV**. No console window or persistent helper process is used. The launcher starts MPV and exits.
-- Movies include their release year when available; episodes include `SxxExx`. Quality/source labels are omitted in this mode. Files launched from Files/Links retain their supplied filename.
+- Movies include their release year when available. Episodes use the series premiere year (not the episode's air year) before `SxxExx`, e.g. `Sherlock (2010) S02E01`, to help the scrobbler distinguish same-named shows. Quality/source labels are omitted in this mode. Files launched from Files/Links retain their supplied filename.
+- If an episode's bridge filename changes, MPV may not find its existing local Watch Later bookmark. This does not delete SIMKL progress or remap previously misidentified entries.
 - A tiny local JSON descriptor has a video-shaped filename for the scrobbler. **It is not a downloaded video.** The MPV hook redirects the stream using [`stream-open-filename`](https://mpv.io/manual/stable/#command-interface-stream-open-filename), while `path` keeps the readable name. MPV exposes timing over its normal local IPC pipe.
 - Signed stream URLs are preserved exactly, kept out of MPV's command-line arguments, and removed from the descriptor after the hook reads it. A crash before loading can leave a descriptor in the helper's `streams` directory; these contain playback links, so do not share that directory. Your own MPV logging configuration may still log stream URLs as usual.
 - Only HTTP(S) stream links are accepted. The helper does not execute commands supplied by links, host a local HTTP proxy, add SIMKL credentials, or directly mark anything watched. The existing scrobbler remains responsible for detection and scrobbling.

@@ -1298,7 +1298,12 @@ test("MPV bridge is opt-in, preserves signed URLs, and formats clean movie/episo
         const played = [];
         const streaming = loader({
             "@/stores/settings": { useSettingsStore: settings },
-            "@/lib/media/player": { openInPlayer: (args) => played.push(args) },
+            "@/lib/media/player": {
+                openInPlayer: (args) => {
+                    played.push(args);
+                    player.openInPlayer(args);
+                },
+            },
             "@/features/addons/hooks/use-addons": {},
             "@/features/preview/stores/preview": {},
             "@/lib/query-client": {},
@@ -1306,15 +1311,35 @@ test("MPV bridge is opt-in, preserves signed URLs, and formats clean movie/episo
         const source = { url, resolution: "2160p", quality: "WEB-DL", size: "10 GB" };
         streaming.getState().playSource(source, { type: "movie", media: { title: "Movie", year: 2026 } });
         assert.equal(played.at(-1).fileName, "Movie (2026)");
-        streaming.getState().playSource(source, {
-            type: "show",
-            media: { title: "Silo", year: 2023 },
-            tvParams: { season: 1, episode: 2, title: "Truth" },
-        });
-        assert.equal(played.at(-1).fileName, "Silo S01E02 - Truth");
+        const playEpisode = (title, year, season, episode, episodeTitle, resume = false) => {
+            streaming.getState().playSource(source, {
+                type: "show",
+                media: { title, year },
+                tvParams: { season, episode, title: episodeTitle },
+                resume,
+            });
+        };
+        const assertBridgeTitle = (title) => {
+            assert.equal(played.at(-1).fileName, title);
+            const launch = new URL(opened.at(-1)[0]);
+            assert.equal(launch.protocol, "debridui-mpv:");
+            assert.equal(launch.searchParams.get("url"), url);
+            assert.equal(launch.searchParams.get("title"), title);
+        };
+        playEpisode("Sherlock", 2010, 2, 1, "A Scandal in Belgravia");
+        assertBridgeTitle("Sherlock (2010) S02E01 - A Scandal in Belgravia");
+        playEpisode("Chernobyl", 2019, 1, 2, "Please Remain Calm", true);
+        assertBridgeTitle("Chernobyl (2019) S01E02 - Please Remain Calm");
+        playEpisode("Silo", undefined, 1, 2, "Truth");
+        assertBridgeTitle("Silo S01E02 - Truth");
+        playEpisode("Sherlock (2010)", 2010, 2, 1);
+        assertBridgeTitle("Sherlock (2010) S02E01");
         selectedPlayer = MediaPlayer.MPV;
         streaming.getState().playSource(source, { type: "movie", media: { title: "Movie", year: 2026 } });
         assert.equal(played.at(-1).fileName, "Movie [2160p WEB-DL 10 GB]");
+        playEpisode("Sherlock", 2010, 2, 1, "A Scandal in Belgravia");
+        assert.equal(played.at(-1).fileName, "Sherlock S02E01 - A Scandal in Belgravia [2160p WEB-DL 10 GB]");
+        assert.equal(opened.at(-1)[0], `mpv://${encodeURIComponent(url)}`);
     } finally {
         if (originalWindow === undefined) delete global.window;
         else global.window = originalWindow;
